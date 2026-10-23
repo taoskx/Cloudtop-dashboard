@@ -1252,16 +1252,21 @@ test('前端必须按主机渲染移动云「当前动作」，且消费后端�
   );
 });
 
-test('移动云不得回退成账号级单行动作；天翼云侧必须保持原样', () => {
+test('移动云不得回退成账号级单行动作；天翼云监视面板精简为状态条', () => {
   const c = (appJs.match(/acc-hb-text-/g) || []).length;
   assert.strictEqual(
     c, 2,
     `acc-hb-text 只应存在于天翼云（卡片渲染 + 原地更新各 1 处），实际 ${c} 处。` +
     '移动云若回退成账号级单行，多机状态差异将再次无法表达'
   );
-  assert.ok(/acc-host-\$\{acc\.id\}/.test(appJs), '天翼云「目标设备」行必须保留（本次改动不得触碰天翼侧）');
-  assert.ok(/acc-success-count-\$\{acc\.id\}/.test(appJs), '天翼云「当日成功轮次」必须保留');
-  assert.ok(/targetDeviceDisplay/.test(appJs), '天翼云多机目标设备展示必须保留');
+  assert.ok(/acc-success-count-\$\{acc\.id\}/.test(appJs), '天翼云「今日成功轮次」必须保留在状态条内');
+  // 【2026-10-23 用户指令修订】监视面板只显示状态：天翼云「目标设备」行与
+  // targetDeviceDisplay 已按用户要求删除（目标设备在上方云主机列表里已有），
+  // 原「天翼侧必须保留目标设备行」的断言就此作废，改为反向锁定不得复活。
+  assert.ok(!/acc-host-\$\{acc\.id\}/.test(appJs), '天翼云监视面板已精简：不得再渲染「目标设备」行（acc-host）');
+  assert.ok(!/targetDeviceDisplay/.test(appJs), 'targetDeviceDisplay 已随目标设备行一并删除，不得复活');
+  assert.ok(/class="status-zone"/.test(appJs), '天翼云保活状态必须并入主机列表盒底部状态区（status-zone）');
+  assert.ok(!/class="mon-panel"/.test(appJs), '独立监视面板 mon-panel 已按 2026-10-23 第三轮要求并入列表盒，不得复活');
 });
 
 test('移动爱家 ZTEC 监视行不得再显示运行状态徽章（与「名下云主机」重复）', () => {
@@ -2778,7 +2783,7 @@ test('重新发送验证码：必须存在专用路由且复用 pending 会话�
 // ============================================================================
 group('组 18 · 卡片监视板块折叠化 / 折叠日志按时间顺序 / 日志默认栏');
 
-test('两个监视板块必须可折叠，且账号级「保活在线」徽章不得复活', () => {
+test('监视状态已并入主机列表盒（不再是独立折叠板块），且账号级「保活在线」徽章不得复活', () => {
   // ① 徽章：只扫**真实标记**（DOM id / 渲染字符串），不扫散文注释 —— 见 skill 教训 6b
   assert.ok(
     !/id="acc-status-badge/.test(appJs),
@@ -2793,41 +2798,30 @@ test('两个监视板块必须可折叠，且账号级「保活在线」徽章�
     '卡片不得再渲染「保活在线」徽章标记'
   );
 
-  // ② 折叠化：两个板块各自成为 details，且带按账号持久化的 key
-  const blocks = [
-    ['ec-monitor', '移动公众 保活监视', 'acc-ec-mon-actions-'],
-    ['yd-monitor', '移动爱家 ZTEC 握手与心跳监视', 'acc-vm-actions-'],
-  ];
-  for (const [key, title, anchor] of blocks) {
-    assert.ok(
-      new RegExp(`isDetailsOpen\\(acc\\.id, '${key}'\\)`).test(appJs),
-      `「${title}」板块必须以 details 折叠，并用 isDetailsOpen(acc.id, '${key}') 恢复折叠状态`
-    );
-    assert.ok(
-      new RegExp(`saveDetailsState\\('\\$\\{acc\\.id\\}', '${key}', this\\.open\\)`).test(appJs),
-      `「${title}」板块必须持久化折叠状态（key=${key}）`
-    );
-    assert.ok(appJs.includes(title), `折叠后的标题必须仍为「${title}」（不得顺手改文案）`);
-    assert.ok(appJs.includes(anchor), `「${title}」板块的内容容器 ${anchor} 必须保留（折叠≠删除内容）`);
+  // ② 【2026-10-23 第三轮修订】监视状态按用户要求并入「名下云主机」列表盒底部状态区：
+  // 原 details 折叠板块（ec-monitor / yd-monitor）整体删除，容器 id 保留在状态区里，
+  // 5 秒原地刷新照常工作；三平台状态行同组件、同高。
+  for (const anchor of ['acc-ec-mon-actions-', 'acc-vm-actions-']) {
+    assert.ok(appJs.includes(anchor), `状态区容器 ${anchor} 必须保留（并入列表盒≠删除刷新通道）`);
   }
-
-  // 【2026-09-25 第七轮】移动公众标题必须**恰好**是「📡 移动公众 保活监视」。
-  // 上面那句 includes(title) 太宽（带上旧后缀也照样通过），这里补"紧接 </span>"的精确结尾断言。
-  // 反向断言走 stripComments：本文件/源码里"说明这行改过什么"的注释必然含旧后缀，
-  // 不剥注释就会自己把自己判红（回归网教训 6/6b 的第三次复现）。
+  assert.ok(
+    (appJs.match(/class="status-zone"/g) || []).length >= 3,
+    '三平台都必须有状态区（status-zone）：移动两平台装逐台状态行，天翼装账号级状态条'
+  );
   const appCode = stripComments(appJs);
-  assert.ok(
-    /📡 移动公众 保活监视<\/span>/.test(appCode),
-    '移动公众监视板块标题必须恰好以「📡 移动公众 保活监视」结尾（紧接 </span>）'
-  );
-  assert.ok(
-    !/保活监视 · 分层明细见日志/.test(appCode),
-    '「· 分层明细见日志」后缀必须删除（用户 2026-09-25：只留「移动公众 保活监视」）'
-  );
+  assert.ok(!/isDetailsOpen\(acc\.id, '(ec|yd)-monitor'\)/.test(appCode), '监视折叠板块已删除，ec/yd-monitor 折叠键不得复活');
+  assert.ok(!/移动公众 保活监视/.test(appCode), '旧长标题「移动公众 保活监视」不得复活');
+  assert.ok(!/握手与心跳监视|SCG 数据面监视/.test(appCode), '旧长标题「握手与心跳监视 / SCG 数据面监视」不得复活');
 
-  // ③ 折叠提示语与卡片内另两个折叠盒保持一致
-  const hintCount = (appJs.match(/点击收起\/展开/g) || []).length;
-  assert.ok(hintCount >= 4, `折叠提示语「点击收起/展开」应至少有 4 处（含本次新增 2 处），现 ${hintCount} 处`);
+  // ③ 折叠提示语已改为小箭头（chev），仅剩功能开关类折叠盒在用
+  // 【2026-10-23 第五轮修订】天翼的功能开关已按用户要求并入「自动化开关」合并色块、
+  // 不再是折叠盒，chev 只剩移动两平台 2 处；下限随之由 3 改为 2。
+  const chevCount = (appJs.match(/class="chev"/g) || []).length;
+  assert.ok(chevCount >= 2, `折叠箭头（chev）应覆盖剩余折叠盒，现 ${chevCount} 处`);
+  assert.ok(
+    !(appJs.replace(/<!--[\s\S]*?-->/g, '').match(/点击收起\/展开/g) || []).length,
+    '「点击收起/展开」文字提示已按 2026-10-23 精简要求删除，不得在渲染标记里复活（模板内 HTML 注释不计）'
+  );
 });
 
 test('折叠日志更新后必须移到底部（按时间顺序，最新在最后）', () => {
@@ -2901,44 +2895,26 @@ test('实时控制台事件筛选：顺序 全部→心跳保活→任务，且�
 // ============================================================================
 group('组 19 · 卡片「当前动作」文字字号与「当前动作」标签一致');
 
-test('三平台「当前动作」后的动作文字必须显式 11.5px，不得继承卡片正文放大的字号', () => {
-  // 取 marker 所在 <span> 的完整开始标签
-  const openTagEndingAt = (src, marker) => {
-    const i = src.indexOf(marker);
-    if (i < 0) return null;
-    const start = src.lastIndexOf('<span', i);
-    const end = src.indexOf('>', i);
-    return (start < 0 || end < 0) ? null : src.slice(start, end + 1);
-  };
-  const sizeOf = (tag) => {
-    const m = /font-size:\s*([\d.]+)px/.exec(tag || '');
-    return m ? parseFloat(m[1]) : null;
-  };
-
-  const cases = [
-    ['移动爱家（ydpc）', 'title="${escapeHtml(view.actionText || \'\')}"'],
-    ['移动公众（ecloud）', 'title="${escapeHtml(actionText)}"'],
-    ['天翼云（ctyun）', 'id="acc-hb-text-'],
-  ];
-  for (const [name, marker] of cases) {
-    const tag = openTagEndingAt(appJs, marker);
-    assert.ok(tag, `${name} 卡片定位不到「当前动作」的动作文字 span（结构已变，请同步本断言）`);
-    assert.ok(
-      sizeOf(tag) === 11.5,
-      `${name} 卡片「当前动作」后的动作文字必须显式 font-size: 11.5px（与标签同号）。`
-      + '不声明就会继承卡片正文的 14px —— 用户看到的就是「字变这么大」。实测开始标签: '
-      + tag.replace(/title="[^"]*"/, 'title="…"')
-    );
-  }
-
-  // 对照项：标签侧三处都仍是 11.5px，防止"把标签也一起改大"来糊弄本断言
-  const labelHits = appJs.match(
-    /<span style="flex-shrink: 0; font-size: 11\.5px; color: #64748b;">当前动作:<\/span>/g
-  ) || [];
+test('三平台监视状态文字字号必须集中声明，不得继承卡片正文放大的字号', () => {
+  // 【2026-10-23 用户指令修订】监视区改为状态条（圆点 + 名称 + 状态），
+  // 「当前动作:」标签与多行文本已删除；字号改由 style.css 的 .mon-status / .mon-name
+  // 集中声明（12px），原「逐 span 内联 11.5px」的断言就此改写为 CSS 锁定。
+  const css = read('app/static/style.css');
   assert.ok(
-    labelHits.length === 3,
-    `三平台的「当前动作:」标签都必须保持 11.5px，现匹配到 ${labelHits.length} 处`
+    /\.mon-status\s*\{[^}]*font-size:\s*12px/.test(css),
+    '.mon-status 必须在 style.css 显式声明 font-size: 12px（不声明就会继承卡片正文，字会变大）'
   );
+  assert.ok(
+    /\.mon-name\s*\{[^}]*font-size:\s*12px/.test(css),
+    '.mon-name 必须在 style.css 显式声明 font-size: 12px'
+  );
+  // 三平台状态文字都必须走 .mon-status（结构锚点仍在）
+  assert.ok(/title="\$\{escapeHtml\(view\.actionText \|\| ''\)\}" style="color: \$\{toneColor\}"/.test(appJs) || /class="mon-status" title="\$\{escapeHtml\(view\.actionText/.test(appJs), '移动爱家状态文字必须走 .mon-status');
+  assert.ok(/class="mon-status" title="\$\{escapeHtml\(actionText\)\}"/.test(appJs), '移动公众状态文字必须走 .mon-status');
+  assert.ok(/id="acc-hb-text-\$\{acc\.id\}" class="mon-status/.test(appJs), '天翼云状态文字必须走 .mon-status');
+  // 反向：监视行不得再出现「当前动作:」标签（已并入状态条）
+  const labelHits = appJs.match(/>当前动作:<\/span>/g) || [];
+  assert.strictEqual(labelHits.length, 0, `监视区已精简为状态条，不得再有「当前动作:」标签，现 ${labelHits.length} 处`);
 });
 
 // ============================================================================
@@ -3159,20 +3135,24 @@ test('静态：例行折叠必须走 routineFoldIndex 查表，不得退回"向�
   }
 });
 
-test('悬停可见完整文本：两平台「上次保活 / 周期」行必须挂 title，且由纯文本工具生成', () => {
+test('悬停可见完整文本：监视状态条的状态文字必须挂 title（上次保活/周期行已删除）', () => {
   assert.ok(/function htmlToPlainTitle\(/.test(appJs), '缺少"渲染片段 → title 纯文本"的工具函数');
-  assert.ok(/const timeLineFull = htmlToPlainTitle\(/.test(appJs), '移动爱家时间行必须生成纯文本 title');
+  // 【2026-10-23 用户指令修订】「上次保活 / 周期 / 距下次」数据行已按要求删除
+  //（细节归实时日志），原 timeLineFull / lastTextFull 断言作废；改为锁定：
+  // 状态文字本身挂 title，ellipsis 截断后悬停仍能看全。
+  assert.ok(!/timeLineFull|lastTextFull/.test(appJs), '时间行已删除，timeLineFull / lastTextFull 不得复活');
+  assert.ok(!/上次保活:/.test(extractFunctionFrom(appJs, 'buildYdpcVmMonitorHtml')), '移动爱家监视行不得再渲染「上次保活」行');
+  assert.ok(!/上次保活:/.test(extractFunctionFrom(appJs, 'buildEcloudDesktopMonitorHtml')), '移动公众监视行不得再渲染「上次保活」行');
   assert.ok(
-    /title="\$\{escapeHtml\(timeLineFull\)\}"/.test(appJs),
-    '移动爱家「上次保活: …」行必须挂 title —— 否则被 ellipsis 截断后无处可看'
+    /class="mon-status" title="\$\{escapeHtml\(view\.actionText \|\| ''\)\}"/.test(appJs),
+    '移动爱家状态文字必须挂 title（截断后悬停看全）'
   );
-  assert.ok(/const lastTextFull = htmlToPlainTitle\(/.test(appJs), '移动公众时间行必须生成纯文本 title');
   assert.ok(
-    /title="\$\{escapeHtml\(lastTextFull\)\}"/.test(appJs),
-    '移动公众「上次保活: …」行必须挂 title'
+    /class="mon-status" title="\$\{escapeHtml\(actionText\)\}"/.test(appJs),
+    '移动公众状态文字必须挂 title（截断后悬停看全）'
   );
 
-  // 行为：把工具函数抽出来真跑（去标签 + 实体还原，避免悬停看到 &amp; 乱码）
+  // 行为：工具函数本身保留且行为不变（其它位置仍可复用）
   // eslint-disable-next-line no-new-func
   const htmlToPlainTitle = new Function(
     `${extractFunctionFrom(appJs, 'htmlToPlainTitle')}\nreturn htmlToPlainTitle;`
@@ -3296,27 +3276,16 @@ test('静态：SSE 的"新增"与"折叠更新"必须共用同一条幂等落盘
 group('组 22 · 移动公众卡片：栏目更名 / instanceId 悬停看全 / 运行状态徽章（诚实三态）');
 
 test('监视板块的主机名必须显式声明 12px（不得继承 16px 浏览器默认）', () => {
-  const cases = [
-    ['移动爱家监视行', 'vmName'],
-    ['移动公众监视行', 'name'],
-  ];
-  for (const [label, expr] of cases) {
-    const re = new RegExp(
-      `<span style="font-size: 12px; font-weight: 700; color: #0f172a;[^"]*">\\$\\{escapeHtml\\(${expr}\\)\\}</span>`,
-      'g'
-    );
-    const hits = appJs.match(re) || [];
-    assert.strictEqual(
-      hits.length, 2,
-      `${label}：降级分支与正常分支都必须显式声明 font-size: 12px，实际 ${hits.length} 处` +
-      '（不给字号就会继承浏览器默认 16px，正是用户看到的"字体偏大"）'
-    );
-  }
-  // 反向：不得再出现"没写 font-size 的主机名 span"（就是本次要修的那种写法）
-  const raw = appJs.match(
-    /<span style="font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\$\{escapeHtml\((?:vmName|name)\)\}<\/span>/g
-  ) || [];
-  assert.strictEqual(raw.length, 0, `监视行主机名不得再出现未声明字号的写法，实际 ${raw.length} 处`);
+  // 【2026-10-23 修订】主机名改走 .mon-name 类，字号在 style.css 集中声明 12px。
+  const css = read('app/static/style.css');
+  assert.ok(
+    /\.mon-name\s*\{[^}]*font-size:\s*12px/.test(css),
+    '.mon-name 必须显式声明 font-size: 12px（不给字号就会继承浏览器默认 16px，正是用户看到的"字体偏大"）'
+  );
+  const ydMon = extractFunctionFrom(appJs, 'buildYdpcVmMonitorHtml');
+  const ecMon = extractFunctionFrom(appJs, 'buildEcloudDesktopMonitorHtml');
+  assert.strictEqual((ydMon.match(/class="mon-name"/g) || []).length, 2, '移动爱家监视行（降级 + 正常两分支）主机名都必须走 .mon-name');
+  assert.strictEqual((ecMon.match(/class="mon-name"/g) || []).length, 2, '移动公众监视行（降级 + 正常两分支）主机名都必须走 .mon-name');
 });
 
 test('三平台栏目名统一为「名下云主机」（全仓不得再出现旧名）', () => {
@@ -3326,7 +3295,7 @@ test('三平台栏目名统一为「名下云主机」（全仓不得再出现�
   assert.ok(ecStart > -1 && ecEnd > ecStart, '无法定位移动公众卡片分支（结构已变，请同步本断言）');
   const ecCard = cardFn.slice(ecStart, ecEnd);
 
-  assert.ok(ecCard.includes('名下云主机 ('), '移动公众列表标题必须为「名下云主机 (N台)」');
+  assert.ok(ecCard.includes('名下云主机 <span class="count-chip">${desktops.length} 台</span>'), '移动公众列表标题必须为「名下云主机 + 数量芯片」（2026-10-23 精简版式）');
   assert.ok(
     !ecCard.includes('名下云电脑'),
     '移动公众卡片不得再出现旧栏目名 —— 用户要求与移动爱家统一为「名下云主机」'
@@ -3344,8 +3313,12 @@ test('三平台栏目名统一为「名下云主机」（全仓不得再出现�
     '旧栏目名已全平台废弃：三张卡片（天翼云 / 移动爱家 / 移动公众）都不得再出现它'
   );
   assert.ok(
-    /名下云主机 \(\$\{dList\.length\}台\)/.test(appJs),
-    '天翼云卡片标题必须同步更名为「名下云主机 (N台)」（该串同时锁住"确实改到了天翼云那一处"）'
+    /名下云主机 <span class="count-chip">\$\{dList\.length\} 台<\/span>/.test(appJs),
+    '天翼云卡片标题必须是「名下云主机 + 数量芯片」（该串同时锁住"确实改到了天翼云那一处"）'
+  );
+  assert.ok(
+    /名下云主机 <span class="count-chip">\$\{vms\.length\} 台<\/span>/.test(appJs),
+    '移动爱家卡片标题必须是「名下云主机 + 数量芯片」'
   );
   // 静态页面的用户可见文案同样要跟上（HTML 注释先剥掉，避免说明性注释误伤）
   assert.ok(indexHtml.length > 0, '无法读取 app/static/index.html（结构已变，请同步本断言）');
@@ -3355,17 +3328,17 @@ test('三平台栏目名统一为「名下云主机」（全仓不得再出现�
   );
 });
 
-test('instanceId 整行必须可省略且悬停可见全文', () => {
+test('instanceId 不得作为可见文本行渲染（2026-10-23 用户要求隐藏 ID）', () => {
   const cardFn = extractFunctionFrom(appJs, 'buildAccountCardElement');
   const ecCard = cardFn.slice(cardFn.indexOf('if (isEcloud) {'), cardFn.indexOf('if (isYdpc) {'));
-  assert.ok(
-    /const iidLineText = `instanceId: \$\{iid \|\| '—'\}`;/.test(ecCard),
-    'instanceId 行文本必须先抽成变量（title 与正文必须同源，不能一处截断一处写死）'
-  );
-  assert.ok(
-    /title="\$\{escapeHtml\(iidLineText\)\}"[\s\S]{0,220}?text-overflow: ellipsis;[\s\S]{0,80}?>\$\{escapeHtml\(iidLineText\)\}<\/div>/.test(ecCard),
-    'instanceId 行必须整行 ellipsis 截断 + title 挂完整文本（鼠标移上去能看到完整 ID）'
-  );
+  // 【2026-10-23 用户指令修订】instanceId 整行已删除（用户：「把 ID、USID 这些隐藏掉」），
+  // 原「整行 ellipsis + 悬停看全」断言作废，改为反向锁定：可见文本里不得再出现 instanceId 行。
+  assert.ok(!/iidLineText/.test(ecCard), 'instanceId 行已删除，iidLineText 不得复活');
+  assert.ok(!/>instanceId:/.test(ecCard), '移动公众卡片不得再渲染可见的 instanceId 文本行');
+  const monFn = extractFunctionFrom(appJs, 'buildEcloudDesktopMonitorHtml');
+  assert.ok(!/instanceId:/.test(monFn.replace(/ec-mon-\$\{acc\.id\}-\$\{escapeHtml\(iid\)\}/g, '')), '移动公众监视行不得再渲染 instanceId 文本');
+  // 内部标识仍在（元素 id / 开机入参依赖 instanceId，那是功能不是展示）
+  assert.ok(/ec-mon-\$\{acc\.id\}-\$\{escapeHtml\(iid\)\}/.test(monFn), 'instanceId 作为内部元素标识必须保留');
 });
 
 test('运行状态徽章：on/off/unknown 三态必须如实渲染（unknown 绝不当成已关机）', () => {
@@ -4710,23 +4683,25 @@ test('静态：底座画像必须只读已持久化的 vendor，且**不得**按
   );
 });
 
-test('静态：「自动开机守护」对全底座恒渲染（SCG 走 CEM 通道 · 真机已验证），过时假承诺文案禁止复活', () => {
+test('静态：「自动开机守护」对全底座恒渲染（通道诚实性保留在悬停说明里），过时假承诺文案禁止复活', () => {
   // 【2026-09-26 第三轮】SCG 开机真机打通 ⇒ "整块不渲染"的删除决定作废，控件必须恒渲染：
   assert.ok(
     !/\$\{_ydpcAllScg \? '' : `<div class="feature-row">/.test(appJs),
     '守护开关块不得再按 _ydpcAllScg 隐藏 —— SCG 开机已打通，隐藏它等于砍掉真功能'
   );
+  // 【2026-10-23 用户指令修订】可见标签按「括号文字隐藏」要求简化为「🛡️ 自动开机守护」，
+  // 通道分叉的诚实性改由 title 悬停说明承载（ZTE→CAG / SCG→CEM），不得丢失。
   assert.ok(
-    /自动开机守护（CEM 通道）/.test(appJs),
-    'SCG 全底座账号必须显示 CEM 通道文案（开机真机已验证）'
+    />🛡️ 自动开机守护<\/span>/.test(appJs),
+    '自动开机守护的可见标签必须存在且已简化（无括号后缀）'
   );
   assert.ok(
-    /自动开机守护（CAG 通道）/.test(appJs),
-    'ZTE 底座必须保留原有开关（分叉≠把功能删掉）'
+    /ZTE 机走 CAG 通道，SCG 机走 CEM 通道/.test(appJs),
+    '通道分叉说明必须保留在悬停 title 里（ZTE→CAG / SCG→CEM 的诚实性不得因精简丢失）'
   );
   assert.ok(
-    /CAG\/CEM 通道 · 按底座自动分流/.test(appJs),
-    '混挂多底座必须写明按底座自动分流（ZTE→CAG / SCG→CEM）'
+    /混挂多底座：ZTE 机走 CAG 通道，SCG 机走 CEM 通道/.test(appJs),
+    '混挂多底座的通道分流说明必须保留在悬停 title 里'
   );
   assert.ok(
     !/SCG 机无效/.test(appJs),
@@ -4742,26 +4717,33 @@ test('静态：「自动开机守护」对全底座恒渲染（SCG 走 CEM 通�
   );
 });
 
-test('静态：数据面 / 控制面开关文案必须按底座分叉（SCG 不得被写成 raw ZTEC / CAG 握手）', () => {
+test('静态：数据面 / 控制面开关标签已简化，底座诚实性保留在悬停说明里', () => {
+  // 【2026-10-23 用户指令修订】可见标签按「括号文字隐藏」要求简化：
+  assert.ok(/>📡 数据面保活<\/span>/.test(appJs), '数据面保活的可见标签必须存在且已简化');
+  assert.ok(/>🔄 控制面保活<\/span>/.test(appJs), '控制面保活的可见标签必须存在且已简化');
+  // 底座分叉的事实改由 title 悬停说明承载，一字不得丢：
   assert.ok(
-    /数据面保活（SCG · trunk\+SPICE）/.test(appJs),
-    'SCG 底座的数据面开关必须写明它走的是 trunk+SPICE'
+    /SCG 数据面保活（官方同款原生传输的另一套实现）/.test(appJs),
+    'SCG 数据面的通道说明必须保留在悬停 title 里（trunk+SPICE）'
   );
   assert.ok(
-    /控制面保活（SOHO 心跳 · SCG 无 CAG 握手）/.test(appJs),
-    'SCG 没有 cagIp ⇒ 控制面开关必须写明"无 CAG 握手"，只驱动 SOHO 心跳'
+    /官方客户端同款原生协议数据面保活（真保活）/.test(appJs),
+    'ZTE 数据面的通道说明必须保留在悬停 title 里'
   );
-  // 反向：ZTE 侧文案一字不得少
-  assert.ok(/数据面保活（raw ZTEC \/ TLS\+SPICE · 真保活）/.test(appJs), 'ZTE 侧数据面文案必须保留');
-  assert.ok(/控制面保活（CAG 握手 \+ SOHO 心跳）/.test(appJs), 'ZTE 侧控制面文案必须保留');
-  assert.ok(appJs.includes('移动爱家 ZTEC 握手与心跳监视'), 'ZTE 侧监视板块标题必须保留');
-
-  // 诚实性：ZTE 侧才允许用「真保活」；SCG 侧的文案里不得出现
-  const scgLabel = appJs.match(/'📡 数据面保活（SCG · [^']*'/);
-  assert.ok(scgLabel, '未找到 SCG 数据面文案（结构已变，请同步本断言）');
   assert.ok(
-    !/真保活/.test(scgLabel[0]),
-    'SCG 数据面在本项目**尚未被证明**，其开关文案不得沿用 ZTE 的「真保活」措辞'
+    /SCG 底座\*\*没有\*\* CAG 握手/.test(appJs),
+    'SCG 无 CAG 握手的事实必须保留在控制面开关的悬停 title 里'
+  );
+  assert.ok(
+    /ZTEC CAG TCP 握手 \+ SOHO 心跳/.test(appJs),
+    'ZTE 控制面构成必须保留在悬停 title 里'
+  );
+  // 诚实性：ZTE 侧才允许用「真保活」；SCG 侧的说明里不得出现
+  const scgTitle = appJs.match(/'SCG 数据面保活（官方同款原生传输的另一套实现）[^']*'/);
+  assert.ok(scgTitle, '未找到 SCG 数据面 title（结构已变，请同步本断言）');
+  assert.ok(
+    !/真保活/.test(scgTitle[0]),
+    'SCG 数据面在本项目**尚未被证明**，其说明不得沿用 ZTE 的「真保活」措辞'
   );
 });
 

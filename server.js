@@ -905,8 +905,8 @@ function getDefaultConfig() {
         channel: 'webhook',
         webhookUrl: ''
       },
-      systemTitle: '天翼云/移动云电脑保活签到中心',
-      systemSubtitle: '多账号长连接保活守护 · 多运营商支持 · 每日签到打卡 · 智能挂机'
+      systemTitle: '天翼云 / 移动云 保活控制台',
+      systemSubtitle: '多账号保活 · 每日签到 · 智能挂机'
     },
     users: [],
     accounts: []
@@ -3365,8 +3365,8 @@ function serveStatic(res, filePath, contentType) {
       // 若返回 HTML，动态将当前最新的系统主标题与副标题注入模板，杜绝页面刷新时回跳闪烁！
       if (contentType.includes('text/html')) {
         let htmlStr = data.toString('utf8');
-        const currentTitle = appConfig.settings?.systemTitle || '天翼云/移动云电脑保活签到中心';
-        const currentSubtitle = appConfig.settings?.systemSubtitle || '多账号长连接保活守护 · 多运营商支持 · 每日签到打卡 · 智能挂机';
+        const currentTitle = appConfig.settings?.systemTitle || '天翼云 / 移动云 保活控制台';
+        const currentSubtitle = appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机';
         htmlStr = htmlStr.replace(/<h1 id="main-system-title">[^<]*<\/h1>/, `<h1 id="main-system-title">${currentTitle}<\/h1>`);
         htmlStr = htmlStr.replace(/(<p style="font-size: 13px; color: var\(--text-muted\); margin-top: 2px;">)[^<]*(<\/p>)/, `$1${currentSubtitle}$2`);
         htmlStr = htmlStr.replace(/<title>[^<]*<\/title>/, `<title>${currentTitle} - 多账号保活控制台<\/title>`);
@@ -4020,8 +4020,8 @@ function rewardNeedsDesktop(prodId, prodType) {
       const accountsCount = appConfig.accounts.filter(a => a.ownerId === session.userId).length;
       jsonResponse(res, {
         isLoggedIn: true,
-        systemTitle: appConfig.settings?.systemTitle || '天翼云/移动云电脑保活签到中心',
-        systemSubtitle: appConfig.settings?.systemSubtitle || '多账号长连接保活守护 · 多运营商支持 · 每日签到打卡 · 智能挂机',
+        systemTitle: appConfig.settings?.systemTitle || '天翼云 / 移动云 保活控制台',
+        systemSubtitle: appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机',
         user: {
           id: user.id,
           username: user.username,
@@ -4037,8 +4037,8 @@ function rewardNeedsDesktop(prodId, prodType) {
         isLoggedIn: false,
         allowRegistration: appConfig.settings?.allowRegistration === true,
         defaultQuota: appConfig.settings?.defaultQuota || 2,
-        systemTitle: appConfig.settings?.systemTitle || '天翼云/移动云电脑保活签到中心',
-        systemSubtitle: appConfig.settings?.systemSubtitle || '多账号长连接保活守护 · 多运营商支持 · 每日签到打卡 · 智能挂机'
+        systemTitle: appConfig.settings?.systemTitle || '天翼云 / 移动云 保活控制台',
+        systemSubtitle: appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机'
       });
     }
     return;

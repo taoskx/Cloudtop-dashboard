@@ -183,7 +183,7 @@ async function checkCurrentUser() {
       currentUser = null;
       if (authBtn) {
         authBtn.classList.remove("hidden");
-        authBtn.innerText = "🔑 立即登录";
+        authBtn.innerText = "登录";
         authBtn.onclick = openAuthModal;
       }
       
@@ -288,7 +288,7 @@ function openPointsDetailModal() {
           </div>
           <div style="display:flex; align-items:center; gap:6px; font-size:12px;">
             <span style="color:var(--text-muted);">达成时间节点:</span>
-            <span style="font-family:monospace; font-weight:600; color:${isDone ? '#2563eb' : '#94a3b8'}; background:${isDone ? '#eff6ff' : '#f8fafc'}; padding:2px 8px; border-radius:4px; border:1px solid ${isDone ? '#dbeafe' : '#f1f5f9'};">
+            <span style="font-family:monospace; font-weight:600; color:${isDone ? '#176c6b' : '#94a3b8'}; background:${isDone ? '#eff6ff' : '#f8fafc'}; padding:2px 8px; border-radius:4px; border:1px solid ${isDone ? '#dbeafe' : '#f1f5f9'};">
               ${isDone ? `🕒 ${escapeHtml(t.completedAt || '今日已达成')}` : '等待今日达成'}
             </span>
           </div>
@@ -456,33 +456,53 @@ function saveGridSlots(slots) {
   } catch (e) {}
 }
 
-function buildOfficialTasksHtml(m) {
-  if (m.officialTasks && m.officialTasks.length > 0) {
-    return m.officialTasks.map(t => {
+// 【2026-10-23 第三轮】天翼「官方任务进度」与对应开关合并为「每日任务」：
+// 每行 = 官方任务名 + 积分 + 进度条/进度 + 对应开关（用户指定映射）：
+//   每日签到打卡(autoSign) ↔ 官方任务「登录…」
+//   AI 智能对话任务(aiChat) ↔ 官方任务「…AI对话…」
+//   云电脑挂机 1 小时(cloudHang) ↔ 官方任务「使用1小时」
+function buildDailyTasksHtml(acc) {
+  const m = acc.liveMetrics || {};
+  const f = acc.features || {};
+  const tasks = m.officialTasks || [];
+  const find = (...keys) => tasks.find(t => keys.some(k => (t.name || '').includes(k)));
+  const rows = [
+    { key: 'autoSign', icon: '📅', label: '每日签到打卡', task: find('登录') },
+    { key: 'aiChat', icon: '🤖', label: 'AI 智能对话任务', task: find('AI对话', '对话') },
+    { key: 'cloudHang', icon: '⏱️', label: '云电脑挂机 1 小时', task: find('使用1小时', '挂机') },
+  ];
+  return rows.map(r => {
+    const t = r.task;
+    let head, prog;
+    if (t) {
       const isDone = t.status === 2 || (t.total > 0 && t.current >= t.total);
       const percent = Math.min(100, Math.round((t.current / (t.total || 1)) * 100));
-      let progressText = `${t.current}/${t.total}`;
-      if (t.name.includes('使用1小时')) {
-        const mins = Math.floor(t.current / 60);
-        progressText = `${mins}分钟 (${t.current}/3600秒)`;
-      }
-
-      return `
-        <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 5px; gap: 6px;">
-            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🎯 <b style="color:#0f172a;">${t.name}</b> <span style="color:#2563eb; font-weight:600;">(+${t.points}分)</span></span>
-            <span style="color: ${isDone ? '#16a34a' : '#d97706'}; font-weight: 700; flex-shrink: 0; font-size: 11px;">
-              ${isDone ? '✅ 已达成' : '⏳ ' + progressText}
-            </span>
-          </div>
-          <div style="background: #e2e8f0; height: 5px; border-radius: 4px; overflow: hidden;">
-            <div style="background: ${isDone ? '#16a34a' : '#2563eb'}; width: ${percent}%; height: 100%; transition: width 0.3s ease;"></div>
-          </div>
+      const progressText = (t.name || '').includes('使用1小时') ? `${t.current}/3600 秒` : `${t.current}/${t.total}`;
+      head = `<b>${escapeHtml(t.name)}</b> <span class="points-chip">+${t.points} 分</span>`;
+      prog = `
+        <div class="task-prog">
+          <div class="task-bar"><div style="background: ${isDone ? '#16a34a' : '#176c6b'}; width: ${percent}%;"></div></div>
+          <span class="task-state" style="color: ${isDone ? '#16a34a' : '#d97706'};">${isDone ? '✅ 已达成' : '⏳ ' + progressText}</span>
+        </div>`;
+    } else {
+      head = `<b>${r.label}</b>`;
+      prog = `
+        <div class="task-prog">
+          <span class="task-state" style="color: var(--text-muted); font-weight: 500;">进度同步中…</span>
+        </div>`;
+    }
+    return `
+      <div class="task-row">
+        <div class="task-head">
+          <span class="task-name">${r.icon} ${head}</span>
+          <label class="switch" title="${r.label}开关">
+            <input type="checkbox" ${f[r.key] !== false ? 'checked' : ''} onchange="toggleFeature('${acc.id}', '${r.key}', this.checked)">
+            <span class="slider"></span>
+          </label>
         </div>
-      `;
-    }).join('');
-  }
-  return `<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 6px 0;">正在同步天翼云官方任务中心数据...</div>`;
+        ${prog}
+      </div>`;
+  }).join('');
 }
 
 // 计算单账号多机周期的综合概览展示文本 (支持单机差异化周期精准动态呈现)
@@ -561,73 +581,50 @@ function buildYdpcVmMonitorHtml(acc) {
     return '<div style="font-size: 12px; color: var(--text-muted); padding: 4px 0;">暂未拉取到名下云主机，点击下方心跳或握手自动同步</div>';
   }
 
+  // 【2026-10-23 第二轮】监视区只显示状态一行；【第五轮】用户要求适度加回运行信息：
+  // 状态行之下补紧凑小字行（上次保活 / 周期 / 距下次 / 最近动作），更细的数据仍归实时日志。
+  const multi = vms.length > 1;
   return vms.map(vm => {
     const usid = String(vm.userServiceId || '');
     const vmName = vm.vmName || '移动云电脑';
     const view = vm.keepAliveView || null;
 
-    // 后端视图缺失时降级：只展示能从 vm 直接读到的信息，绝不假装知道当前动作
     if (!view) {
       const running = String(vm.vmStatus || '').includes('运行') || vm.vmStatusCode === 1;
       return `
-        <div class="vm-mon-row" style="display: flex; flex-direction: column; gap: 2px; padding: 5px 0; border-top: 1px dashed var(--border);">
-          <div style="display: flex; align-items: baseline; gap: 5px; overflow: hidden; white-space: nowrap; min-width: 0;">
-            <span style="flex-shrink: 0;">${running ? '🟢' : '⚪'}</span>
-            <span style="font-size: 12px; font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(vmName)}</span>
+        <div class="vm-mon-row mon-vm" id="vm-mon-${acc.id}-${escapeHtml(usid)}">
+          <div class="mon-line">
+            <span class="mon-dot" style="background: ${running ? '#2f7a55' : '#b6c2c0'};"></span>
+            ${multi ? `<span class="mon-name">${escapeHtml(vmName)}</span>` : ''}
+            <span class="mon-status" style="color: #94a3b8;">等待同步</span>
           </div>
-          <div style="font-size: 11.5px; color: #94a3b8; padding-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">当前动作: 等待后端状态同步…</div>
         </div>
       `;
     }
 
     const toneColor = YDPC_TONE_COLORS[view.tone] || '#64748b';
-    const dot = YDPC_TONE_DOTS[view.tone] || '⚪';
-
-    // 周期文本
+    const pulse = (view.tone === 'ok' || view.tone === 'idle') ? ' pulse' : '';
+    // 【2026-10-23 第五轮】适度加回运行信息（紧凑小字行）：上次保活 / 周期 / 距下次巡检 + 最近动作，
+    // 与天翼卡的信息量靠拢；更细的数据仍归实时日志。
     const intervalSec = parseInt(view.intervalSec) || 600;
     const intervalText = intervalSec >= 60 ? `${Math.round(intervalSec / 60)} 分钟` : `${intervalSec} 秒`;
-
-    // 距下次巡检倒计时：仅"运行中 + 单机保活开着 + 已有保活记录"才是有效语义
     let nextText = '';
     if (view.running && view.keepaliveOn && view.nextDueAt > 0) {
       const remainSec = (view.nextDueAt - Date.now()) / 1000;
-      nextText = remainSec <= 0
-        ? ' · <b style="color: #0284c7;">即将巡检</b>'
-        : ` · 距下次 <b style="color: #0f172a;">${formatYdpcRemainText(remainSec)}</b>`;
+      nextText = remainSec <= 0 ? ' · 距下次 即将巡检' : ` · 距下次 ${formatYdpcRemainText(remainSec)}`;
     }
-
-    const timeLine = view.lastKeepAliveText
-      ? `上次保活: <b style="color: #0f172a;">${escapeHtml(view.lastKeepAliveText)}</b> · 周期: <b>${intervalText}</b>${nextText}`
-      : `周期: <b>${intervalText}</b>${nextText}`;
-
-    const actionLine = view.lastActionText
-      ? `最近动作: <span style="color: ${toneColor}; font-weight: 600;">${escapeHtml(view.lastActionText)}</span>`
-      : '';
-
-    // 【2026-09-25 用户要求】「上次保活: …」这一行会被 ellipsis 截断（卡片窄），
-    // 用户要求鼠标悬停时能看到完整内容 ⇒ 用**去标签后的纯文本**做 title（title 属性不吃 HTML）。
-    const timeLineFull = htmlToPlainTitle(timeLine + (actionLine ? ' · ' + actionLine : ''));
-
-    // 【2026-09-24 用户要求·第四轮】「当前动作」后面的动作文字原先没写 font-size ⇒ 继承卡片正文字号
-    // （.account-card 未声明 font-size，实际落到浏览器默认 16px），与 11.5px 的「当前动作:」标签一比就显大。
-    // 此处显式对齐到 11.5px（颜色 / 字重不变）。
-    //
-    // 【2026-09-25 用户要求·第七轮】同一个"未声明字号"的坑也发生在**主机名**那一行：
-    // 监视板块（.features-box）整体未声明 font-size，"云电脑省侧部署包高阶版月报 / 8C16G版云电脑月包 /
-    // 我的电脑" 这类名称便以 16px 渲染，与周围 11 / 11.5 / 12px 的文字比明显偏大。
-    // 现显式声明 12px —— 与「名下云主机」列表（.vm-device-item 本就是 12px）对齐，整卡字号重回一档。
+    const timeText = view.lastKeepAliveText
+      ? `上次保活 ${stripParensText(view.lastKeepAliveText)} · 周期 ${intervalText}${nextText}`
+      : `周期 ${intervalText}${nextText}`;
     return `
-      <div class="vm-mon-row" id="vm-mon-${acc.id}-${escapeHtml(usid)}" style="display: flex; flex-direction: column; gap: 2px; padding: 5px 0; border-top: 1px dashed var(--border);">
-        <div style="display: flex; align-items: baseline; gap: 5px; overflow: hidden; white-space: nowrap; min-width: 0;">
-          <span style="flex-shrink: 0;">${dot}</span>
-          <span style="font-size: 12px; font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(vmName)}</span>
+      <div class="vm-mon-row mon-vm" id="vm-mon-${acc.id}-${escapeHtml(usid)}">
+        <div class="mon-line">
+          <span class="mon-dot${pulse}" style="background: ${toneColor};"></span>
+          ${multi ? `<span class="mon-name">${escapeHtml(vmName)}</span>` : ''}
+          <span class="mon-status" title="${escapeHtml(view.actionText || '')}" style="color: ${toneColor};">${escapeHtml(stripParensText(view.actionText) || '待命中')}</span>
         </div>
-        <div style="display: flex; align-items: baseline; gap: 4px; overflow: hidden; white-space: nowrap; min-width: 0; padding-left: 16px;">
-          <span style="flex-shrink: 0; font-size: 11.5px; color: #64748b;">当前动作:</span>
-          <span title="${escapeHtml(view.actionText || '')}" style="font-size: 11.5px; color: ${toneColor}; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(view.actionText || '待命中')}</span>
-        </div>
-        <div title="${escapeHtml(timeLineFull)}" style="font-size: 11.5px; color: #475569; padding-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${timeLine}${actionLine ? ' · ' + actionLine : ''}</div>
-        ${view.hintText ? `<div style="font-size: 11px; color: #94a3b8; padding-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(view.hintText)}</div>` : ''}
+        <div class="mon-sub" title="${escapeHtml(timeText)}">${escapeHtml(timeText)}</div>
+        ${view.lastActionText ? `<div class="mon-sub" title="${escapeHtml(view.lastActionText)}">最近动作 ${escapeHtml(stripParensText(view.lastActionText))}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -696,68 +693,49 @@ function buildEcloudDesktopMonitorHtml(acc) {
     return '<div style="font-size: 12px; color: var(--text-muted); padding: 4px 0;">暂未拉取到名下云主机，点击下方「同步桌面」或「立即保活」自动拉取</div>';
   }
 
+  // 【2026-10-23 第二轮】监视区只显示状态一行；【第五轮】同爱家口径适度加回：
+  // 上次保活 / 周期 / 距下次 / 在线时长小字行；instanceId 仍不显示。
+  const multi = desktops.length > 1;
   return desktops.map(d => {
     const iid = String(d.instanceId || '');
     const name = d.machineName || '移动公众云电脑';
     const view = d.keepAliveView || null;
-    // 【2026-09-24 用户要求】逐台监视行做减法：不再显示「启用徽章」与厂商徽章 CMSSZTE（两枚一并删除）——
-    // 这些信息在「名下云主机」列表里已有；本行只保留 圆点 + 名称 + 当前动作。
 
-    // 视图缺失时降级：只陈述客观事实，绝不臆造"当前动作"
     if (!view) {
       return `
-        <div class="ec-mon-row" style="display: flex; flex-direction: column; gap: 2px; padding: 5px 0; border-top: 1px dashed var(--border);">
-          <div style="display: flex; align-items: baseline; gap: 5px; overflow: hidden; white-space: nowrap; min-width: 0;">
-            <span style="flex-shrink: 0;">🟣</span>
-            <span style="font-size: 12px; font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(name)}</span>
+        <div class="ec-mon-row mon-vm" id="ec-mon-${acc.id}-${escapeHtml(iid)}">
+          <div class="mon-line">
+            <span class="mon-dot" style="background: #b6c2c0;"></span>
+            ${multi ? `<span class="mon-name">${escapeHtml(name)}</span>` : ''}
+            <span class="mon-status" style="color: #94a3b8;">等待同步</span>
           </div>
-          <div style="font-size: 11.5px; color: #94a3b8; padding-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">当前动作: 等待后端状态同步…</div>
         </div>
       `;
     }
 
     const tone = ecloudViewTone(view);
     const toneColor = ECLOUD_TONE_COLORS[tone] || '#64748b';
-    const dot = ECLOUD_TONE_DOTS[tone] || '⚪';
-
+    const actionText = (view.lastAction && view.lastAction.text) || (view.enabled ? '待巡检' : (view.disabledReason || '未参与巡检'));
+    const pulse = (tone === 'ok' || tone === 'idle') ? ' pulse' : '';
+    // 【2026-10-23 第五轮】同移动爱家口径，适度加回运行信息小字行（上次保活 / 周期 / 距下次 + 在线时长）。
     const intervalSec = parseInt(view.intervalSec) || 300;
     const intervalText = intervalSec >= 60 ? `${Math.round(intervalSec / 60)} 分钟` : `${intervalSec} 秒`;
-
-    // 距下次巡检倒计时：仅"本机启用 + 已有保活记录"才是有效语义，否则不显示假倒计时
     let nextText = '';
     if (view.enabled && view.elapsedSec > 0 && view.remainSec >= 0) {
-      nextText = view.remainSec <= 0
-        ? ' · <b style="color: #0284c7;">即将巡检</b>'
-        : ` · 距下次 <b style="color: #0f172a;">${formatEcloudRemainText(view.remainSec)}</b>`;
+      nextText = view.remainSec <= 0 ? ' · 距下次 即将巡检' : ` · 距下次 ${formatEcloudRemainText(view.remainSec)}`;
     }
-
-    const lastText = view.elapsedSec > 0
-      ? `上次保活: <b style="color: #0f172a;">${formatEcloudRemainText(view.elapsedSec)}前</b> · 周期: <b>${intervalText}</b>${nextText}`
-      : `周期: <b>${intervalText}</b>${nextText}`;
-
-    const actionText = (view.lastAction && view.lastAction.text) || (view.enabled ? '待巡检' : (view.disabledReason || '未参与巡检'));
-
-    // 【2026-09-25 用户要求】同上：这一行会被 ellipsis 截断，悬停必须能看全 ⇒ title 用纯文本。
-    const lastTextFull = htmlToPlainTitle(
-      lastText + (view.uptime ? ` · 在线时长: ${view.uptime}` : '')
-    );
-
-    // 【2026-09-24 用户要求·第四轮】「当前动作」后面的动作文字显式对齐到 11.5px —— 原先未声明
-    // font-size 会继承卡片正文字号（.account-card 未声明，实际是浏览器默认 16px），比 11.5px 的标签明显大。
-    // 【2026-09-25 用户要求·第七轮】主机名同样补上显式 12px —— 理由与移动爱家监视行完全一致：
-    // 这些 span 不写字号就会继承浏览器默认 16px，而周围是 11 / 11.5 / 12px，于是看着"字体偏大"。
+    const timeText = view.elapsedSec > 0
+      ? `上次保活 ${formatEcloudRemainText(view.elapsedSec)}前 · 周期 ${intervalText}${nextText}`
+      : `周期 ${intervalText}${nextText}`;
     return `
-      <div class="ec-mon-row" id="ec-mon-${acc.id}-${escapeHtml(iid)}" style="display: flex; flex-direction: column; gap: 2px; padding: 5px 0; border-top: 1px dashed var(--border);">
-        <div style="display: flex; align-items: baseline; gap: 5px; overflow: hidden; white-space: nowrap; min-width: 0;">
-          <span style="flex-shrink: 0;">${dot}</span>
-          <span style="font-size: 12px; font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(name)}</span>
+      <div class="ec-mon-row mon-vm" id="ec-mon-${acc.id}-${escapeHtml(iid)}">
+        <div class="mon-line">
+          <span class="mon-dot${pulse}" style="background: ${toneColor};"></span>
+          ${multi ? `<span class="mon-name">${escapeHtml(name)}</span>` : ''}
+          <span class="mon-status" title="${escapeHtml(actionText)}" style="color: ${toneColor};">${escapeHtml(stripParensText(actionText))}</span>
         </div>
-        <div style="display: flex; align-items: baseline; gap: 4px; overflow: hidden; white-space: nowrap; min-width: 0; padding-left: 16px;">
-          <span style="flex-shrink: 0; font-size: 11.5px; color: #64748b;">当前动作:</span>
-          <span title="${escapeHtml(actionText)}" style="font-size: 11.5px; color: ${toneColor}; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(actionText)}</span>
-        </div>
-        <div title="${escapeHtml(lastTextFull)}" style="font-size: 11.5px; color: #475569; padding-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${lastText}${view.uptime ? ` · 在线时长: <b>${escapeHtml(String(view.uptime))}</b>` : ''}</div>
-        <div title="instanceId: ${escapeHtml(iid)}" style="font-size: 11px; color: #94a3b8; padding-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">instanceId: ${escapeHtml(iid)}</div>
+        <div class="mon-sub" title="${escapeHtml(timeText)}">${escapeHtml(timeText)}</div>
+        ${view.uptime ? `<div class="mon-sub">在线时长 ${escapeHtml(view.uptime)}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -826,9 +804,9 @@ function buildAccountCardElement(acc, slotIndex) {
     let desktopsHtml = '';
     if (desktops.length > 0) {
       desktopsHtml = `
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
-          <div style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px; display: flex; justify-content: space-between;">
-            <span>🖥️ ${desktopsCountText}</span>
+        <div class="vm-list-box">
+          <div class="vm-list-head">
+            <span>名下云主机 <span class="count-chip">${desktops.length} 台</span></span>
             <span id="acc-multi-status-${acc.id}">${ecMultiStatusBadge}</span>
           </div>
           <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -850,14 +828,11 @@ function buildAccountCardElement(acc, slotIndex) {
                   ? `<span class="badge badge-offline" title="依据：${escapeHtml(powerEvidence)}；平台原始 resourceStatus: ${statusRaw}">已关机</span>`
                   : `<span class="badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;" title="尚未取到运行状态（getDesktopStatus 未返回）">状态未知</span>`);
 
-              // instanceId 很长（CCA-<32hex>）且整行会被 ellipsis 截断 ⇒ 悬停用 title 给出完整文本
-              const iidLineText = `instanceId: ${iid || '—'}`;
-
               let keepClass = isKeepaliveOn ? 'pill-on-keepalive' : 'pill-off-keepalive';
               let keepText = isKeepaliveOn ? '开' : '关';
               if (isGlobalKeepAliveOff && isKeepaliveOn) {
                 keepClass = 'pill-paused';
-                keepText = '待命(总关)';
+                keepText = '待命';
               }
 
               return `
@@ -868,8 +843,6 @@ function buildAccountCardElement(acc, slotIndex) {
                         <span style="font-size: 12px; color: #0f172a; font-weight: 700; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHtml(d.machineName || '移动公众云电脑')}</span>
                         ${d.originCompanyCode ? `<span class="badge" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;font-size:9.5px;padding:0 5px;line-height:1.3;">${escapeHtml(d.originCompanyCode)}</span>` : ''}
                       </div>
-                      <!-- instanceId 过长：整行省略号截断，鼠标悬停显示完整 ID -->
-                      <div title="${escapeHtml(iidLineText)}" style="font-size: 11px; color: #64748b; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(iidLineText)}</div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
                       ${powerBadge}
@@ -897,6 +870,9 @@ function buildAccountCardElement(acc, slotIndex) {
                 </div>
               `;
             }).join('')}
+          </div>
+          <div class="status-zone" id="acc-ec-mon-actions-${acc.id}">
+            ${buildEcloudDesktopMonitorHtml(acc)}
           </div>
         </div>
       `;
@@ -935,34 +911,11 @@ function buildAccountCardElement(acc, slotIndex) {
       <!-- 🖥️ 名下云主机列表 -->
       ${desktopsHtml}
 
-      <!-- 📡 移动公众专属：逐台保活监视（原先的 L1/L2/L3 分层总览条已按用户要求移入日志流） -->
-      <!-- 【2026-09-24 用户要求·第三轮】账号级「保活在线」徽章已删除，
-           本板块改为**可点击收起/展开**，折叠状态按账号持久化（与其它折叠盒同机制）。 -->
-      <!-- 【2026-09-25 用户要求·第七轮】标题尾部那条「· xxx」后缀已按用户要求删掉，只留
-           平台名 + 板块名，与移动爱家标题风格对齐（旧后缀原文见 git 历史与测试注释，此处不复述，
-           否则会撞到"后缀必须删除"的反向断言）。删的只是**标题后缀文字**，
-           "分层明细走日志流"这条事实与实现完全不变。 -->
-      <details class="features-box" ${isDetailsOpen(acc.id, 'ec-monitor') ? 'open' : ''} ontoggle="saveDetailsState('${acc.id}', 'ec-monitor', this.open)">
-        <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #334155; user-select: none; gap: 6px;">
-          <span style="color: #0369a1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📡 移动公众 保活监视</span>
-          <span style="font-size: 11px; color: var(--text-muted); font-weight: normal; flex-shrink: 0; white-space: nowrap;">点击收起/展开</span>
-        </summary>
-        <div style="color: #475569; line-height: 1.7; display: flex; flex-direction: column; gap: 3px;">
-          <div id="acc-ec-mon-actions-${acc.id}" style="display: flex; flex-direction: column;">
-            ${buildEcloudDesktopMonitorHtml(acc)}
-          </div>
-          <div id="acc-active-info-${acc.id}" style="font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">账号汇总: <b style="color: #0f172a;">${escapeHtml(m.lastHeartbeatResult || '保活巡检待命')}</b> · 周期: <b>${buildIntervalOverviewText(acc)}</b></div>
-          <!-- 【2026-09-24 用户要求】原卡片底部的免责说明框已删除（卡片只留逐台状态）。
-               口径前移到日志流：ecloud_client.js 的 _logLayerSummary() 每轮都会附带
-               「说明: L1/L2 是 HTTP 层探针，成功不代表云电脑不会被关机」。 -->
-        </div>
-      </details>
-
       <!-- ⚙️ 分层自动化保活开关（独立于另两平台的分层命名） -->
       <details class="features-box" ${isDetailsOpen(acc.id, 'features') ? 'open' : ''} ontoggle="saveDetailsState('${acc.id}', 'features', this.open)">
         <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #334155; user-select: none; gap: 6px;">
-          <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">⚙️ 分层自动化保活开关</span>
-          <span style="font-size: 11px; color: var(--text-muted); font-weight: normal; flex-shrink: 0; white-space: nowrap;">点击收起/展开</span>
+          <span class="panel-head"><span class="icon-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>自动化开关</span>
+          <span class="chev">⌄</span>
         </summary>
         <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
           <!-- 【2026-09-28 用户要求】🛡️ 自动开机守护置于最前且**默认开启**：
@@ -1082,9 +1035,9 @@ function buildAccountCardElement(acc, slotIndex) {
     if (vms.length > 0) {
 
       vmsHtml = `
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
-          <div style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px; display: flex; justify-content: space-between;">
-            <span>🖥️ ${vmsCountText}</span>
+        <div class="vm-list-box">
+          <div class="vm-list-head">
+            <span>名下云主机 <span class="count-chip">${vms.length} 台</span></span>
             <span id="acc-multi-status-${acc.id}">${ydpcMultiStatusBadge}</span>
           </div>
           <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -1101,7 +1054,7 @@ function buildAccountCardElement(acc, slotIndex) {
               let keepText = isKeepaliveOn ? '开' : '关';
               if (isGlobalKeepAliveOff && isKeepaliveOn) {
                 keepClass = 'pill-paused';
-                keepText = '待命(总关)';
+                keepText = '待命';
               }
 
               return `
@@ -1112,7 +1065,7 @@ function buildAccountCardElement(acc, slotIndex) {
                         <span style="color: #0f172a; font-weight: 700; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHtml(vm.vmName || '移动云电脑')}</span>
                         ${vm.vendorName ? `<span class="badge" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;font-size:9.5px;padding:0 5px;line-height:1.3;">${escapeHtml(vm.vendorName)}</span>` : ''}
                       </div>
-                      <span style="font-size: 11px; color: #64748b;">USID: ${usid}${specSuffix}</span>
+                      ${specSuffix ? `<span style="font-size: 11px; color: #64748b;">${specSuffix.replace(' · ', '')}</span>` : ''}
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
                       <span class="badge ${isRunning ? 'badge-online' : 'badge-offline'}">${isRunning ? '运行中' : '已关机'}</span>
@@ -1140,6 +1093,9 @@ function buildAccountCardElement(acc, slotIndex) {
                 </div>
               `;
             }).join('')}
+          </div>
+          <div class="status-zone" id="acc-vm-actions-${acc.id}">
+            ${buildYdpcVmMonitorHtml(acc)}
           </div>
         </div>
       `;
@@ -1177,29 +1133,11 @@ function buildAccountCardElement(acc, slotIndex) {
       <!-- 🖥️ 名下云主机列表 -->
       ${vmsHtml}
 
-      <!-- 📡 移动云专属 CAG 握手与心跳监视 -->
-      <!-- 【2026-09-24 用户要求·第三轮】账号级「保活在线」徽章已删除；本板块改为可点击收起/展开。 -->
-      <details class="features-box" ${isDetailsOpen(acc.id, 'yd-monitor') ? 'open' : ''} ontoggle="saveDetailsState('${acc.id}', 'yd-monitor', this.open)">
-        <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #334155; user-select: none; gap: 6px;">
-          <span style="color: #0369a1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${_ydpcAllScg ? '📡 移动爱家 SCG 数据面监视' : '📡 移动爱家 ZTEC 握手与心跳监视'}</span>
-          <span style="font-size: 11px; color: var(--text-muted); font-weight: normal; flex-shrink: 0; white-space: nowrap;">点击收起/展开</span>
-        </summary>
-        <div style="color: #475569; line-height: 1.7; display: flex; flex-direction: column; gap: 3px;">
-          <!-- 【2026-09-23 按主机维度】原先是单行账号级"当前动作"，多机（如ZTE样本主号下 2 台）
-               状态不同时无法区分，且运行中时该文案永不刷新 → 长期停在「保活巡检待命中」。
-               现改为逐台主机渲染，状态由后端 describeVmKeepAlive 统一下发。 -->
-          <div id="acc-vm-actions-${acc.id}" style="display: flex; flex-direction: column;">
-            ${buildYdpcVmMonitorHtml(acc)}
-          </div>
-          <div id="acc-active-info-${acc.id}" style="font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">账号汇总: <b style="color: #0f172a;">${escapeHtml(m.lastHeartbeatResult || '保活巡检待命')}</b> · 周期: <b>${buildIntervalOverviewText(acc)}</b></div>
-        </div>
-      </details>
-
       <!-- 专属功能开关 (精致折叠设计，状态持久化) -->
       <details class="features-box" ${isDetailsOpen(acc.id, 'features') ? 'open' : ''} ontoggle="saveDetailsState('${acc.id}', 'features', this.open)">
         <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #334155; user-select: none; gap: 6px;">
-          <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">⚙️ 自动化保活开关<span class="badge" style="margin-left:6px;${_ydpcBaseChipStyle}" title="${escapeHtml(_ydpcBaseNote)}">${escapeHtml(_ydpcBaseLabel)}</span></span>
-          <span style="font-size: 11px; color: var(--text-muted); font-weight: normal; flex-shrink: 0; white-space: nowrap;">点击收起/展开</span>
+          <span class="panel-head"><span class="icon-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>自动化开关<span class="badge" style="margin-left:2px;${_ydpcBaseChipStyle}" title="${escapeHtml(_ydpcBaseNote)}">${escapeHtml(_ydpcBaseLabel)}</span></span>
+          <span class="chev">⌄</span>
         </summary>
         <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
           <!-- 【2026-09-23 修订】「🛡️ 自动开机守护」开关已恢复。
@@ -1210,7 +1148,7 @@ function buildAccountCardElement(acc, slotIndex) {
                getVmReadyStatus 轮询至就绪。两端共用同一套账号自有凭据与已获批 CEM 材料。
                默认开启（2026-09-28 用户拍板），不需要可显式关闭。 -->
           <div class="feature-row">
-            <span title="${escapeHtml(_ydpcMixedBase ? '检测到机器关机时自动拉起（默认开启）。本账号混挂多底座：ZTE 机走 CAG 通道，SCG 机走 CEM 通道，各自使用账号自有凭据' : '检测到机器关机时自动拉起（默认开启）。ZTE 机走 CAG 通道，SCG 机走 CEM 通道')}">${_ydpcMixedBase ? '🛡️ 自动开机守护（CAG/CEM 通道 · 按底座自动分流）' : (_ydpcAllScg ? '🛡️ 自动开机守护（CEM 通道）' : '🛡️ 自动开机守护（CAG 通道）')}</span>
+            <span title="${escapeHtml(_ydpcMixedBase ? '检测到机器关机时自动拉起（默认开启）。本账号混挂多底座：ZTE 机走 CAG 通道，SCG 机走 CEM 通道，各自使用账号自有凭据' : '检测到机器关机时自动拉起（默认开启）。ZTE 机走 CAG 通道，SCG 机走 CEM 通道')}">🛡️ 自动开机守护</span>
             <!-- 【2026-09-28 修复】默认口径按底座分叉（与后端 _autoBootArmed 同源）：含 SCG 的账号默认勾选；
                  纯 ZTE 账号默认不勾（ZTE 开机走 CAG 会真实消耗限时套餐时长，需显式开启）。
                  本表达式依赖 _ydpcVendors，只能在移动爱家分支内使用。 -->
@@ -1223,7 +1161,7 @@ function buildAccountCardElement(acc, slotIndex) {
                开启后，已开启「⚡保活」的运行中机器自动改走数据面，并抑制其 SOHO 心跳/CAG 握手（冗余）。
                ⚠️ 数据面是独占桌面会话，官方 App 可能无法同时接入该机器。 -->
           <div class="feature-row">
-            <span title="${escapeHtml(_ydpcAllScg ? 'SCG 数据面保活（官方同款原生传输的另一套实现）：裸 TCP → auth 包 → 同 socket 升 TLS → trunk 帧 + SPICE 通道认证。开启后单机「⚡保活」开着的运行中机器自动改走数据面，并抑制其控制面保活。⚠️ 会占用桌面会话，官方 App 可能无法同时接入。⚠️ 本通道尚未被证明有效（显示面是否真的出图只能在真机观察）' : (_ydpcAllZte ? '官方客户端同款原生协议数据面保活（真保活）。开启后单机「⚡保活」开着的运行中机器自动改走数据面，并抑制其控制面保活。⚠️ 会占用桌面会话，官方 App 可能无法同时接入' : '原生协议数据面保活。各机按自身底座走对应通道（ZTE：raw ZTEC / TLS+SPICE；SCG：trunk+SPICE）。⚠️ 会占用桌面会话，官方 App 可能无法同时接入。⚠️ 是否真保活以实跑为准，本项目不作"保活已被证明"的声明'))}">${_ydpcAllScg ? '📡 数据面保活（SCG · trunk+SPICE）' : (_ydpcAllZte ? '📡 数据面保活（raw ZTEC / TLS+SPICE · 真保活）' : '📡 数据面保活（原生协议 · 逐台判定）')}</span>
+            <span title="${escapeHtml(_ydpcAllScg ? 'SCG 数据面保活（官方同款原生传输的另一套实现）：裸 TCP → auth 包 → 同 socket 升 TLS → trunk 帧 + SPICE 通道认证。开启后单机「⚡保活」开着的运行中机器自动改走数据面，并抑制其控制面保活。⚠️ 会占用桌面会话，官方 App 可能无法同时接入。⚠️ 本通道尚未被证明有效（显示面是否真的出图只能在真机观察）' : (_ydpcAllZte ? '官方客户端同款原生协议数据面保活（真保活）。开启后单机「⚡保活」开着的运行中机器自动改走数据面，并抑制其控制面保活。⚠️ 会占用桌面会话，官方 App 可能无法同时接入' : '原生协议数据面保活。各机按自身底座走对应通道（ZTE：raw ZTEC / TLS+SPICE；SCG：trunk+SPICE）。⚠️ 会占用桌面会话，官方 App 可能无法同时接入。⚠️ 是否真保活以实跑为准，本项目不作"保活已被证明"的声明'))}">📡 数据面保活</span>
             <label class="switch">
               <input type="checkbox" ${f.dataPlaneKeepalive !== false ? 'checked' : ''} onchange="toggleFeature('${acc.id}', 'dataPlaneKeepalive', this.checked)">
               <span class="slider"></span>
@@ -1231,7 +1169,7 @@ function buildAccountCardElement(acc, slotIndex) {
           </div>
           <!-- 【2026-09-23 合并】ZTEC CAG 握手 与 SOHO 心跳 共用同一周期，合并为一个"控制面保活"开关 -->
           <div class="feature-row">
-            <span title="${escapeHtml(_ydpcAllScg ? 'SCG 底座**没有** CAG 握手（firm-auth 材料里只有 scgIp/scAuthCode，没有 cagIp）—— 因此本开关在 SCG 机器上只驱动 SOHO 心跳（它同时也是 SCG 会话慢平面的同一路心跳），不发起任何 CAG 握手' : 'ZTEC CAG TCP 握手 + SOHO 心跳（共用同一周期，默认 10 分钟，可单机覆盖）。⚠️ 对 SCG 底座机器只走 SOHO 心跳——SCG 没有 cagIp')}">${_ydpcAllScg ? '🔄 控制面保活（SOHO 心跳 · SCG 无 CAG 握手）' : '🔄 控制面保活（CAG 握手 + SOHO 心跳）'}</span>
+            <span title="${escapeHtml(_ydpcAllScg ? 'SCG 底座**没有** CAG 握手（firm-auth 材料里只有 scgIp/scAuthCode，没有 cagIp）—— 因此本开关在 SCG 机器上只驱动 SOHO 心跳（它同时也是 SCG 会话慢平面的同一路心跳），不发起任何 CAG 握手' : 'ZTEC CAG TCP 握手 + SOHO 心跳（共用同一周期，默认 10 分钟，可单机覆盖）。⚠️ 对 SCG 底座机器只走 SOHO 心跳——SCG 没有 cagIp')}">🔄 控制面保活</span>
             <label class="switch">
               <input type="checkbox" ${f.controlPlaneKeepalive !== false ? 'checked' : ''} onchange="toggleFeature('${acc.id}', 'controlPlaneKeepalive', this.checked)">
               <span class="slider"></span>
@@ -1272,7 +1210,7 @@ function buildAccountCardElement(acc, slotIndex) {
     ? `<span class="badge badge-online">已绑设备</span>`
     : `<span class="badge badge-warning" style="cursor: pointer;" onclick="openSmsModal('${acc.id}')">⚠️ 待绑定</span>`;
 
-  const officialTaskHtml = buildOfficialTasksHtml(m);
+  const officialTaskHtml = buildDailyTasksHtml(acc);
 
   // 云电脑设备列表渲染
   let desktopsHtml = '';
@@ -1306,9 +1244,9 @@ function buildAccountCardElement(acc, slotIndex) {
     // 【2026-09-25·第七轮补】用户要求三平台口径统一：本卡片栏目名也改成「名下云主机」。
     // 注意：源码注释里**不得复述旧名**，否则会撞"旧栏目名已全平台废弃"的反向断言（模板串内的 HTML 注释剥不掉）。
     desktopsHtml = `
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;">
-        <div style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px; display: flex; justify-content: space-between;">
-          <span>🖥️ 名下云主机 (${dList.length}台)</span>
+      <div class="vm-list-box">
+        <div class="vm-list-head">
+          <span>名下云主机 <span class="count-chip">${dList.length} 台</span></span>
           <span id="acc-multi-status-${acc.id}">${ctyunMultiStatusBadge}</span>
         </div>
           <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -1352,14 +1290,14 @@ function buildAccountCardElement(acc, slotIndex) {
               let keepText = isKeepaliveOn ? '开' : '关';
               if (isGlobalKeepAliveOff && isKeepaliveOn) {
                 keepClass = 'pill-paused';
-                keepText = '待命(总关)';
+                keepText = '待命';
               }
 
               let taskClass = isTaskOn ? 'pill-on-task' : 'pill-off-task';
               let taskText = isTaskOn ? '开' : '关';
               if (isGlobalTasksOff && isTaskOn) {
                 taskClass = 'pill-paused';
-                taskText = '待命(总关)';
+                taskText = '待命';
               }
 
               return `
@@ -1368,9 +1306,9 @@ function buildAccountCardElement(acc, slotIndex) {
                     <div style="display: flex; flex-direction: column; min-width: 0; flex: 1; overflow: hidden;">
                       <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; white-space: nowrap;">
                         <span title="${escapeHtml(d.desktopName || '天翼云电脑')}" style="color: #0f172a; font-weight: 700; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; cursor: help;">${escapeHtml(d.desktopName || '天翼云电脑')}</span>
-                        ${d.flavorName ? `<span style="font-size: 10.5px; background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 4px; flex-shrink: 0; white-space: nowrap;">${escapeHtml(d.flavorName)}</span>` : ''}
+                        ${d.flavorName ? `<span style="font-size: 10.5px; background: #eff6ff; color: #176c6b; padding: 1px 6px; border-radius: 4px; flex-shrink: 0; white-space: nowrap;">${escapeHtml(d.flavorName)}</span>` : ''}
                       </div>
-                      <span style="font-size: 11px; color: #64748b; margin-top: 1px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="设备ID: ${escapeHtml(idText)}${escapeHtml(specSuffix)}">ID: ${escapeHtml(idText)}${escapeHtml(specSuffix)}</span>
+                      <span style="font-size: 11px; color: #64748b; margin-top: 1px;">${escapeHtml(specSuffix.replace(' · ', ''))}</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; white-space: nowrap;">
                       <span class="badge ${isRunning ? 'badge-online' : 'badge-offline'}">${isRunning ? '运行中' : '已关机'}</span>
@@ -1398,13 +1336,17 @@ function buildAccountCardElement(acc, slotIndex) {
               `;
             }).join('')}
           </div>
+          <div class="status-zone">
+            <div class="mon-strip">
+              <span class="mon-dot pulse" style="background: ${(m.lastHeartbeatResult || '').includes('避让') ? '#b77a16' : '#2f7a55'};"></span>
+              <span id="acc-hb-text-${acc.id}" class="mon-status mon-status-left" title="${escapeHtml(m.lastHeartbeatResult || '正在建立心跳通道...')}" style="color: ${(m.lastHeartbeatResult || '').includes('避让') ? '#d97706' : '#16a34a'};">${escapeHtml(stripParensText(m.lastHeartbeatResult) || '正在建立心跳通道...')}</span>
+              <span class="mon-meta">今日 <span id="acc-success-count-${acc.id}" style="color: #176c6b; font-weight: 700;">${m.successCount || 0} 轮</span> · <span id="acc-countdown-${acc.id}">${m.isTaskHanging ? `挂机中 · 剩 <b>${m.cycleCountdown || 0}s</b>` : `倒计时 <b>${m.cycleCountdown || 30}s</b>`}</span></span>
+            </div>
+          </div>
       </div>
     `;
   }
 
-  const targetDeviceDisplay = dList.length > 1 
-    ? `名下 ${dList.length} 台云电脑 (全量多机守护)` 
-    : `${escapeHtml(m.desktopName || dList[0]?.desktopName || '云电脑')} (${escapeHtml(m.currentHost || '已就绪')})`;
 
   card.innerHTML = `
     <div class="card-top">
@@ -1435,77 +1377,28 @@ function buildAccountCardElement(acc, slotIndex) {
     <!-- 🖥️ 名下云主机列表 -->
     ${desktopsHtml}
 
-    <!-- 📡 真实 WebSocket 保活心跳状态监视 -->
-    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 12px;">
-      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; gap: 6px; flex-wrap: wrap;">
-        <span style="color: #2563eb; font-weight: 700; flex-shrink: 0;">📡 状态与心跳监视</span>
-        <span id="acc-countdown-${acc.id}" style="color: var(--text-muted); font-size: 11px; text-align: right; flex-shrink: 1;">${m.isTaskHanging ? `模式: <b style="color:#d97706;">定时挂机中</b> (剩余: <b style="color:#2563eb;">${m.cycleCountdown || 0}s</b>)` : `脉冲周期: <b>${buildIntervalOverviewText(acc)}</b> (倒计时: <b style="color:#16a34a;">${m.cycleCountdown || 30}s</b>)`}</span>
+    <!-- 自动化开关（2026-10-23 第五轮：每日任务与功能开关合并为一个色块） -->
+    <div class="task-box">
+      <div class="vm-list-head">
+        <span class="panel-head"><span class="icon-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>自动化开关</span>
+        <span class="points-chip">总分 <b id="acc-points-val-${acc.id}">${m.userPoints || 0}</b></span>
       </div>
-      <div style="color: #475569; line-height: 1.7; display: flex; flex-direction: column; gap: 3px;">
-        <div style="display: flex; align-items: baseline; gap: 4px; overflow: hidden; white-space: nowrap; min-width: 0;">
-          <span style="flex-shrink: 0; font-size: 11.5px; color: #64748b;">目标设备:</span>
-          <span id="acc-host-${acc.id}" title="${targetDeviceDisplay}" style="color: #0f172a; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; flex: 1; min-width: 0; cursor: help;">${targetDeviceDisplay}</span>
-        </div>
-        <div style="display: flex; align-items: baseline; gap: 4px; overflow: hidden; white-space: nowrap; min-width: 0;">
-          <span style="flex-shrink: 0; font-size: 11.5px; color: #64748b;">当前动作:</span>
-          <span id="acc-hb-text-${acc.id}" title="${escapeHtml(m.lastHeartbeatResult || '正在建立心跳通道...')}" style="font-size: 11.5px; color: ${(m.lastHeartbeatResult || '').includes('避让') ? '#d97706' : '#16a34a'}; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; flex: 1; min-width: 0; cursor: help;">${escapeHtml(m.lastHeartbeatResult || '正在建立心跳通道...')}</span>
-        </div>
-        <div style="font-size: 11.5px; color: #475569;">当日成功轮次: <span id="acc-success-count-${acc.id}" style="color: #2563eb; font-weight: 600;">${m.successCount || 0} 轮</span></div>
-      </div>
-    </div>
-
-    <!-- 🏆 天翼云官方真实任务看板 (精致可折叠设计，状态持久化) -->
-    <details class="card-collapse-box" ${isDetailsOpen(acc.id, 'tasks') ? 'open' : ''} ontoggle="saveDetailsState('${acc.id}', 'tasks', this.open)">
-      <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: 700; user-select: none; gap: 6px;">
-        <span style="color: #b45309; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🏆 官方任务进度 (总分: <b id="acc-points-val-${acc.id}" style="color:#16a34a;">${m.userPoints || 0}</b>)</span>
-        <span style="font-size: 11px; color: var(--text-muted); font-weight: normal; flex-shrink: 0; white-space: nowrap;">点击收起/展开</span>
-      </summary>
-      <div id="acc-tasks-list-${acc.id}" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+      <div id="acc-tasks-list-${acc.id}" class="task-list">
         ${officialTaskHtml}
       </div>
-    </details>
-
-    <!-- 功能开关 (精致折叠设计，状态持久化) -->
-    <details class="features-box" ${isDetailsOpen(acc.id, 'features') ? 'open' : ''} ontoggle="saveDetailsState('${acc.id}', 'features', this.open)">
-      <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #334155; user-select: none; gap: 6px;">
-        <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">⚙️ 自动化任务与保活开关</span>
-        <span style="font-size: 11px; color: var(--text-muted); font-weight: normal; flex-shrink: 0; white-space: nowrap;">点击收起/展开</span>
-      </summary>
-      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-        <div class="feature-row">
-          <span>📡 启用云电脑保活</span>
-          <label class="switch">
-            <input type="checkbox" ${f.keepAlive !== false ? 'checked' : ''} onchange="toggleFeature('${acc.id}', 'keepAlive', this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="feature-row">
-          <span>📅 每日自动签到打卡</span>
-          <label class="switch">
-            <input type="checkbox" ${f.autoSign !== false ? 'checked' : ''} onchange="toggleFeature('${acc.id}', 'autoSign', this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="feature-row">
-          <span>🤖 AI 智能对话任务 (每日100分)</span>
-          <label class="switch">
-            <input type="checkbox" ${f.aiChat !== false ? 'checked' : ''} onchange="toggleFeature('${acc.id}', 'aiChat', this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="feature-row">
-          <span>⏱️ 云电脑挂机1小时 (每日100分)</span>
-          <label class="switch">
-            <input type="checkbox" ${f.cloudHang !== false ? 'checked' : ''} onchange="toggleFeature('${acc.id}', 'cloudHang', this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="feature-row">
-          <span>🎁 自动兑换/抽奖 (${acc.redeemConfig?.enabled ? '<b style=\"color:#16a34a\">已开</b>' : '未开'})</span>
-          <button class="btn btn-sm btn-warning" onclick="openRedeemModal('${acc.id}')" style="flex-shrink:0;padding:3px 8px;font-size:11.5px;">⚙️ 奖品设置</button>
-        </div>
+      <div class="task-sep"></div>
+      <div class="feature-row">
+        <span>📡 启用云电脑保活</span>
+        <label class="switch">
+          <input type="checkbox" ${f.keepAlive !== false ? 'checked' : ''} onchange="toggleFeature('${acc.id}', 'keepAlive', this.checked)">
+          <span class="slider"></span>
+        </label>
       </div>
-    </details>
+      <div class="feature-row">
+        <span>🎁 自动兑换/抽奖 <span class="mini-chip">${acc.redeemConfig?.enabled ? '已开' : '未开'}</span></span>
+        <button class="btn btn-sm btn-warning" onclick="openRedeemModal('${acc.id}')" style="flex-shrink:0;padding:3px 8px;font-size:11.5px;">⚙️ 奖品设置</button>
+      </div>
+    </div>
 
     <!-- 快捷操作按钮 -->
     <div class="card-actions">
@@ -1547,7 +1440,7 @@ function updateAccountsInPlace(filteredAccounts) {
       const hbTextEl = document.getElementById(`acc-hb-text-${acc.id}`);
       if (hbTextEl) {
         const hbResult = m.lastHeartbeatResult || '正在建立心跳通道...';
-        hbTextEl.innerText = hbResult;
+        hbTextEl.innerText = stripParensText(hbResult);
         hbTextEl.title = hbResult;
         hbTextEl.style.color = hbResult.includes('避让') ? '#d97706' : '#16a34a';
       }
@@ -1583,8 +1476,8 @@ function updateAccountsInPlace(filteredAccounts) {
     const cdEl = document.getElementById(`acc-countdown-${acc.id}`);
     if (cdEl) {
       cdEl.innerHTML = m.isTaskHanging
-        ? `模式: <b style="color:#d97706;">定时挂机中</b> (剩余: <b style="color:#2563eb;">${m.cycleCountdown || 0}s</b>)`
-        : `脉冲周期: <b>${buildIntervalOverviewText(acc)}</b> (倒计时: <b style="color:#16a34a;">${m.cycleCountdown || 30}s</b>)`;
+        ? `挂机中 · 剩 <b>${m.cycleCountdown || 0}s</b>`
+        : `倒计时 <b>${m.cycleCountdown || 30}s</b>`;
     }
 
     const successEl = document.getElementById(`acc-success-count-${acc.id}`);
@@ -1607,8 +1500,18 @@ function updateAccountsInPlace(filteredAccounts) {
     }
 
     const tasksListEl = document.getElementById(`acc-tasks-list-${acc.id}`);
-    if (tasksListEl && m.officialTasks && m.officialTasks.length > 0) {
-      tasksListEl.innerHTML = buildOfficialTasksHtml(m);
+    if (tasksListEl) {
+      // 【2026-10-23 第三轮】任务行内含开关：仅在进度/积分/开关状态签名变化时才重绘，
+      // 避免 5 秒轮询无谓重建打断用户操作。
+      const sig = JSON.stringify([
+        m.userPoints || 0,
+        (m.officialTasks || []).map(t => [t.name, t.current, t.total, t.status]),
+        f.autoSign !== false, f.aiChat !== false, f.cloudHang !== false,
+      ]);
+      if (tasksListEl.dataset.sig !== sig) {
+        tasksListEl.dataset.sig = sig;
+        tasksListEl.innerHTML = buildDailyTasksHtml(acc);
+      }
     }
 
     // 6. 原地增量更新单机独立保活与开机/任务胶囊开关状态与总状态徽章
@@ -1642,7 +1545,7 @@ function updateAccountsInPlace(filteredAccounts) {
           let keepText = isKeepaliveOn ? '开' : '关';
           if (isGlobalKeepAliveOff && isKeepaliveOn) {
             keepClass = 'pill-paused';
-            keepText = '待命(总关)';
+            keepText = '待命';
           }
           pKeep.className = `pill-toggle-btn ${keepClass}`;
           pKeep.innerText = `⚡保活: ${keepText}`;
@@ -1699,7 +1602,7 @@ function updateAccountsInPlace(filteredAccounts) {
           let keepText = isKeepaliveOn ? '开' : '关';
           if (isGlobalKeepAliveOff && isKeepaliveOn) {
             keepClass = 'pill-paused';
-            keepText = '待命(总关)';
+            keepText = '待命';
           }
           pKeep.className = `pill-toggle-btn ${keepClass}`;
           pKeep.innerText = `⚡保活: ${keepText}`;
@@ -1739,7 +1642,7 @@ function updateAccountsInPlace(filteredAccounts) {
           let keepText = isKeepaliveOn ? '开' : '关';
           if (isGlobalKeepAliveOff && isKeepaliveOn) {
             keepClass = 'pill-paused';
-            keepText = '待命(总关)';
+            keepText = '待命';
           }
           pKeep.className = `pill-toggle-btn ${keepClass}`;
           pKeep.innerText = `⚡保活: ${keepText}`;
@@ -1750,7 +1653,7 @@ function updateAccountsInPlace(filteredAccounts) {
           let taskText = isTaskOn ? '开' : '关';
           if (isGlobalTasksOff && isTaskOn) {
             taskClass = 'pill-paused';
-            taskText = '待命(总关)';
+            taskText = '待命';
           }
           pTask.className = `pill-toggle-btn ${taskClass}`;
           pTask.innerText = `🎯任务: ${taskText}`;
@@ -1782,7 +1685,7 @@ function renderAccounts(isSilent = false) {
           为保障账号隐私安全与多用户隔离，未登录访客无法查看或添加云电脑。请登录已有账号，或免费注册新账号开启独立后台。
         </p>
         <div style="display: flex; gap: 12px; justify-content: center;">
-          <button class="btn btn-primary" onclick="openAuthModal('login')">🔑 立即登录</button>
+          <button class="btn btn-primary" onclick="openAuthModal('login')">登录</button>
           <button class="btn" onclick="openAuthModal('register')">✨ 免费注册新用户</button>
         </div>
       </div>
@@ -2338,8 +2241,8 @@ async function loadQrCodeForModal() {
   const hintEl = document.getElementById("acc-qrcode-hint");
 
   if (imgEl) imgEl.style.display = "none";
-  if (loadingEl) { loadingEl.style.display = "flex"; loadingEl.innerText = "正在生成官方二维码..."; }
-  if (hintEl) { hintEl.innerText = "等待扫码确认中..."; hintEl.style.color = "#2563eb"; }
+  if (loadingEl) { loadingEl.style.display = "flex"; loadingEl.innerText = "正在生成二维码..."; }
+  if (hintEl) { hintEl.innerText = "等待扫码确认中..."; hintEl.style.color = "#176c6b"; }
 
   try {
     const res = await authFetch("/api/account/qrcode/generate", { method: "POST" });
@@ -3946,10 +3849,10 @@ async function openSettingsModal() {
 
     const c = settings.cron || {};
     if (document.getElementById("set-system-title")) {
-      document.getElementById("set-system-title").value = settings.systemTitle || "天翼云 / 移动爱家 保活签到中心";
+      document.getElementById("set-system-title").value = settings.systemTitle || "天翼云 / 移动云 保活控制台";
     }
     if (document.getElementById("set-system-subtitle")) {
-      document.getElementById("set-system-subtitle").value = settings.systemSubtitle || "多账号长连接保活守护 · 多运营商支持 · 每日签到打卡 · 智能挂机";
+      document.getElementById("set-system-subtitle").value = settings.systemSubtitle || "多账号保活 · 每日签到 · 智能挂机";
     }
     if (document.getElementById("cron-task-time")) {
       document.getElementById("cron-task-time").value = c.executeTime || "01:20";
@@ -3992,8 +3895,8 @@ async function saveSettings() {
   const customTitle = document.getElementById("set-system-title") ? document.getElementById("set-system-title").value.trim() : "";
   const customSubtitle = document.getElementById("set-system-subtitle") ? document.getElementById("set-system-subtitle").value.trim() : "";
   const payload = {
-    systemTitle: customTitle || "天翼云 / 移动爱家 保活签到中心",
-    systemSubtitle: customSubtitle || "多账号长连接保活守护 · 多运营商支持 · 每日签到打卡 · 智能挂机",
+    systemTitle: customTitle || "天翼云 / 移动云 保活控制台",
+    systemSubtitle: customSubtitle || "多账号保活 · 每日签到 · 智能挂机",
     keepAliveSeconds: 60,
     pulseIntervalSeconds: 30,
     allowRegistration: document.getElementById("set-allow-reg") ? document.getElementById("set-allow-reg").checked : false,
@@ -4480,6 +4383,12 @@ function escapeHtml(str) {
  * 再去标签后必须先还原成原字符，否则 escapeHtml 会二次转义、悬停看到 `&amp;` 这类乱码。
  * 注意 `&amp;` 必须最后还原 —— 否则 `&amp;lt;` 会被错解成 `<`。
  */
+// 【2026-10-23 用户要求】监视状态条只显示状态：状态文本里的括号补充说明在展示层去掉，
+// 完整原文保留在 title（悬停可见）与实时日志里。
+function stripParensText(t) {
+  return String(t == null ? '' : t).replace(/\s*[（(][^）)]*[）)]/g, '').trim();
+}
+
 function htmlToPlainTitle(html) {
   return String(html == null ? '' : html)
     .replace(/<[^>]*>/g, '')
@@ -4592,7 +4501,7 @@ function switchAuthMode(mode) {
   document.getElementById("auth-modal-title").innerText = isLogin ? "用户登录" : "新用户注册";
   document.getElementById("btn-auth-tab-login").className = isLogin ? "btn btn-sm btn-primary" : "btn btn-sm";
   document.getElementById("btn-auth-tab-reg").className = !isLogin ? "btn btn-sm btn-primary" : "btn btn-sm";
-  document.getElementById("btn-auth-submit").innerText = isLogin ? "立即登录" : "立即注册并登录";
+  document.getElementById("btn-auth-submit").innerText = isLogin ? "登录" : "注册并登录";
   const tipEle = document.getElementById("auth-tip");
   if (tipEle) {
     tipEle.innerHTML = "";
