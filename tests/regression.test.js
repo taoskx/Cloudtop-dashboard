@@ -1247,7 +1247,9 @@ test('前端必须按主机渲染移动云「当前动作」，且消费后端�
     '移动云卡片必须有逐台渲染容器 acc-vm-actions'
   );
   assert.ok(
-    /acc-vm-actions-\$\{acc\.id\}/.test(appJs) && /vmActionsEl\.innerHTML = buildYdpcVmMonitorHtml\(acc\)/.test(appJs),
+    // 【2026-10-23 v2.6.2 修订】写入方式由 innerHTML 直替改为 morphInnerHtml（数据流不变：仍以
+    // buildYdpcVmMonitorHtml 的产物刷新该容器；仅节点不重建以消除闪烁），断言同步更新、保护意图不变。
+    /acc-vm-actions-\$\{acc\.id\}/.test(appJs) && /morphInnerHtml\(vmActionsEl, buildYdpcVmMonitorHtml\(acc\)\)/.test(appJs),
     '5 秒轮询的原地更新必须刷新 acc-vm-actions 容器（否则多机状态只在整卡重绘时更新）'
   );
 });
@@ -4790,7 +4792,8 @@ test('静态：5 秒增量轮询按元素存在性同步（SCG 控件恢复渲�
     '不得保留 disabled 占位过滤 —— 控件已全部真实渲染，再留着它等于承认"还有一个按不动的胶囊"存在'
   );
   assert.ok(
-    /pAutoBoot\.innerText = `🛡️守护: /.test(appJs),
+    // 【2026-10-23 v2.6.2 修订】胶囊写入统一走 setPill 守卫（值不变不写 DOM），同步行为不变，断言同步更新。
+    /setPill\(pAutoBoot, on \? 'pill-on-keepalive' : 'pill-off-keepalive', `🛡️守护: /.test(appJs),
     '守护胶囊（含 SCG 机）必须被 5 秒轮询同步（分叉≠把同步删掉）'
   );
 });

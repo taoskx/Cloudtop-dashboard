@@ -2232,3 +2232,6 @@ details[open] > summary .chev { transform: rotate(180deg); }
 .vm-mon-row + .vm-mon-row, .ec-mon-row + .ec-mon-row { border-top: 1px dashed rgba(23, 60, 59, 0.08); }
 .task-sep { border-top: 1px solid rgba(23, 60, 59, 0.09); margin: 6px 0 4px; }
 .task-box .feature-row { padding: 3px 0; }
+
+/* 【2026-10-23 v2.6.2 无闪刷新】监视区与倒计时数字用等宽数字，秒数变化不撑动布局 */
+.mon-line, .mon-sub, .vm-mon-row, [id^="acc-countdown-"] { font-variant-numeric: tabular-nums; }

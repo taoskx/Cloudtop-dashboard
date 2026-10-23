@@ -317,7 +317,7 @@ async function loadAccounts(isSilent = false) {
   try {
     const res = await authFetch("/api/accounts");
     accounts = await res.json();
-    renderAccounts();
+    renderAccounts(isSilent);
     if (!isSilent) loadStatus();
   } catch (e) {
     if (!isSilent) showToast("加载账号列表失败: " + e.message, "error");
@@ -1421,6 +1421,48 @@ function buildAccountCardElement(acc, slotIndex) {
   return card;
 }
 
+// 【2026-10-23 v2.6.2 无闪刷新】就地 morph：把新 HTML 与元素现有子节点逐层比对，
+// 骨架（标签序列）一致时只写变化了的文本与属性，节点本体全部保留——
+// CSS 动画（呼吸点 mon-pulse）不再每 5 秒重启、布局不重排；骨架变了才整体替换。
+function morphInnerHtml(el, html) {
+  if (!el) return;
+  if (el.__morphHtml === html) return;
+  el.__morphHtml = html;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const walk = (live, fresh) => {
+    const lk = live.childNodes, fk = fresh.childNodes;
+    if (lk.length !== fk.length) return false;
+    for (let i = 0; i < lk.length; i++) {
+      const ln = lk[i], fn = fk[i];
+      if (ln.nodeType !== fn.nodeType) return false;
+      if (ln.nodeType === 3) {
+        if (ln.nodeValue !== fn.nodeValue) ln.nodeValue = fn.nodeValue;
+      } else if (ln.nodeType === 1) {
+        if (ln.tagName !== fn.tagName) return false;
+        const fa = fn.attributes;
+        for (let a = 0; a < fa.length; a++) {
+          if (ln.getAttribute(fa[a].name) !== fa[a].value) ln.setAttribute(fa[a].name, fa[a].value);
+        }
+        for (let a = ln.attributes.length - 1; a >= 0; a--) {
+          if (!fn.hasAttribute(ln.attributes[a].name)) ln.removeAttribute(ln.attributes[a].name);
+        }
+        if (!walk(ln, fn)) return false;
+      }
+    }
+    return true;
+  };
+  if (!walk(el, tpl.content)) el.innerHTML = html;
+}
+
+// 胶囊开关写入守卫：值没变就不碰 DOM
+function setPill(el, cls, text) {
+  if (!el) return;
+  const full = 'pill-toggle-btn ' + cls;
+  if (el.className !== full) el.className = full;
+  if (el.innerText !== text) el.innerText = text;
+}
+
 // 原地静默增量局部数据更新 (100% 杜绝 DOM 结构重绘与滚动条跳跃)
 function updateAccountsInPlace(filteredAccounts) {
   filteredAccounts.forEach(acc => {
@@ -1452,7 +1494,7 @@ function updateAccountsInPlace(filteredAccounts) {
     if (isYdpc) {
       const vmActionsEl = document.getElementById(`acc-vm-actions-${acc.id}`);
       if (vmActionsEl) {
-        vmActionsEl.innerHTML = buildYdpcVmMonitorHtml(acc);
+        morphInnerHtml(vmActionsEl, buildYdpcVmMonitorHtml(acc));
       }
     }
 
@@ -1461,24 +1503,23 @@ function updateAccountsInPlace(filteredAccounts) {
     //     分层总览条已按用户要求移入日志流，此处不再有对应的 DOM 节点。
     if (isEcloud) {
       const ecMonEl = document.getElementById(`acc-ec-mon-actions-${acc.id}`);
-      if (ecMonEl) ecMonEl.innerHTML = buildEcloudDesktopMonitorHtml(acc);
+      if (ecMonEl) morphInnerHtml(ecMonEl, buildEcloudDesktopMonitorHtml(acc));
       // 【2026-09-28】逐台同步「🛡️守护」胶囊（按元素存在性过滤，绝不留无元素可写的幽灵控件）
       for (const d of (acc.desktops || [])) {
         const iid2 = String(d.instanceId || '');
         const pAuto = document.getElementById(`pill-autoboot-${acc.id}-${iid2}`);
         if (!pAuto) continue;
         const on = d.autoBootEnabled !== false;
-        pAuto.className = `pill-toggle-btn ${on ? 'pill-on-keepalive' : 'pill-off-keepalive'}`;
-        pAuto.innerText = `🛡️守护: ${on ? '开' : '关'}`;
+        setPill(pAuto, on ? 'pill-on-keepalive' : 'pill-off-keepalive', `🛡️守护: ${on ? '开' : '关'}`);
       }
     }
 
     // 3. 更新倒计时与轮次 (天翼云)
     const cdEl = document.getElementById(`acc-countdown-${acc.id}`);
     if (cdEl) {
-      cdEl.innerHTML = m.isTaskHanging
+      morphInnerHtml(cdEl, m.isTaskHanging
         ? `挂机中 · 剩 <b>${m.cycleCountdown || 0}s</b>`
-        : `倒计时 <b>${m.cycleCountdown || 30}s</b>`;
+        : `倒计时 <b>${m.cycleCountdown || 30}s</b>`);
     }
 
     const successEl = document.getElementById(`acc-success-count-${acc.id}`);
@@ -1523,16 +1564,16 @@ function updateAccountsInPlace(filteredAccounts) {
 
       if (multiStatusEl) {
         if (isGlobalKeepAliveOff) {
-          multiStatusEl.innerHTML = `<span style="color: #94a3b8; font-weight: 600;">⚪ 全局保活已关闭</span>`;
+          morphInnerHtml(multiStatusEl, `<span style="color: #94a3b8; font-weight: 600;">⚪ 全局保活已关闭</span>`);
         } else {
           const anyKeepOn = acc.vms.some(v => v.keepaliveEnabled !== false);
           const allKeepOn = acc.vms.every(v => v.keepaliveEnabled !== false);
           if (allKeepOn && acc.vms.length > 1) {
-            multiStatusEl.innerHTML = `<span style="color: #10b981; font-weight: 600;">🟢 全量多机保活已激活</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #10b981; font-weight: 600;">🟢 全量多机保活已激活</span>`);
           } else if (anyKeepOn) {
-            multiStatusEl.innerHTML = `<span style="color: #0284c7; font-weight: 600;">🟡 按单机策略保活中</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #0284c7; font-weight: 600;">🟡 按单机策略保活中</span>`);
           } else {
-            multiStatusEl.innerHTML = `<span style="color: #94a3b8; font-weight: 600;">⚪ 单机保活已全关</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #94a3b8; font-weight: 600;">⚪ 单机保活已全关</span>`);
           }
         }
       }
@@ -1548,8 +1589,7 @@ function updateAccountsInPlace(filteredAccounts) {
             keepClass = 'pill-paused';
             keepText = '待命';
           }
-          pKeep.className = `pill-toggle-btn ${keepClass}`;
-          pKeep.innerText = `⚡保活: ${keepText}`;
+          setPill(pKeep, keepClass, `⚡保活: ${keepText}`);
         }
         const pInterval = document.getElementById(`pill-interval-${acc.id}-${usid}`);
         if (pInterval && document.activeElement !== pInterval) {
@@ -1562,8 +1602,7 @@ function updateAccountsInPlace(filteredAccounts) {
         if (pAutoBoot) {
           const vmIsScg = String((vm && vm.vendor) || '').toUpperCase() === 'SCG';
           const on = vm.autoBootEnabled !== undefined ? vm.autoBootEnabled !== false : vmIsScg;
-          pAutoBoot.className = `pill-toggle-btn ${on ? 'pill-on-keepalive' : 'pill-off-keepalive'}`;
-          pAutoBoot.innerText = `🛡️守护: ${on ? '开' : '关'}`;
+          setPill(pAutoBoot, on ? 'pill-on-keepalive' : 'pill-off-keepalive', `🛡️守护: ${on ? '开' : '关'}`);
         }
         // 【2026-09-23 新增】同步"运行中则隐藏 🖥️开机 按钮"（整卡片重绘会处理新增，这里只处理隐藏）
         const statusStr = String(vm.vmStatus || vm.vmStatusShow || '');
@@ -1580,16 +1619,16 @@ function updateAccountsInPlace(filteredAccounts) {
 
       if (multiStatusEl) {
         if (isGlobalKeepAliveOff) {
-          multiStatusEl.innerHTML = `<span style="color: #94a3b8; font-weight: 600;">⚪ 全局保活已关闭</span>`;
+          morphInnerHtml(multiStatusEl, `<span style="color: #94a3b8; font-weight: 600;">⚪ 全局保活已关闭</span>`);
         } else {
           const anyKeepOn = acc.desktops.some(d => d.keepaliveEnabled !== false);
           const allKeepOn = acc.desktops.every(d => d.keepaliveEnabled !== false);
           if (allKeepOn && acc.desktops.length > 1) {
-            multiStatusEl.innerHTML = `<span style="color: #10b981; font-weight: 600;">🟢 全量多机保活已激活</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #10b981; font-weight: 600;">🟢 全量多机保活已激活</span>`);
           } else if (anyKeepOn) {
-            multiStatusEl.innerHTML = `<span style="color: #0284c7; font-weight: 600;">🟡 按单机策略保活中</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #0284c7; font-weight: 600;">🟡 按单机策略保活中</span>`);
           } else {
-            multiStatusEl.innerHTML = `<span style="color: #94a3b8; font-weight: 600;">⚪ 单机保活已全关</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #94a3b8; font-weight: 600;">⚪ 单机保活已全关</span>`);
           }
         }
       }
@@ -1605,8 +1644,7 @@ function updateAccountsInPlace(filteredAccounts) {
             keepClass = 'pill-paused';
             keepText = '待命';
           }
-          pKeep.className = `pill-toggle-btn ${keepClass}`;
-          pKeep.innerText = `⚡保活: ${keepText}`;
+          setPill(pKeep, keepClass, `⚡保活: ${keepText}`);
         }
         const pInterval = document.getElementById(`pill-interval-${acc.id}-${iid}`);
         if (pInterval && document.activeElement !== pInterval) {
@@ -1619,16 +1657,16 @@ function updateAccountsInPlace(filteredAccounts) {
 
       if (multiStatusEl) {
         if (isGlobalKeepAliveOff) {
-          multiStatusEl.innerHTML = `<span style="color: #94a3b8; font-weight: 600;">⚪ 全局保活已关闭</span>`;
+          morphInnerHtml(multiStatusEl, `<span style="color: #94a3b8; font-weight: 600;">⚪ 全局保活已关闭</span>`);
         } else {
           const anyKeepOn = acc.desktops.some(d => d.keepaliveEnabled !== false);
           const allKeepOn = acc.desktops.every(d => d.keepaliveEnabled !== false);
           if (allKeepOn && acc.desktops.length > 1) {
-            multiStatusEl.innerHTML = `<span style="color: #10b981; font-weight: 600;">🟢 全量多机保活已激活</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #10b981; font-weight: 600;">🟢 全量多机保活已激活</span>`);
           } else if (anyKeepOn) {
-            multiStatusEl.innerHTML = `<span style="color: #0284c7; font-weight: 600;">🟡 按单机策略保活中</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #0284c7; font-weight: 600;">🟡 按单机策略保活中</span>`);
           } else {
-            multiStatusEl.innerHTML = `<span style="color: #94a3b8; font-weight: 600;">⚪ 单机保活已全关</span>`;
+            morphInnerHtml(multiStatusEl, `<span style="color: #94a3b8; font-weight: 600;">⚪ 单机保活已全关</span>`);
           }
         }
       }
@@ -1645,8 +1683,7 @@ function updateAccountsInPlace(filteredAccounts) {
             keepClass = 'pill-paused';
             keepText = '待命';
           }
-          pKeep.className = `pill-toggle-btn ${keepClass}`;
-          pKeep.innerText = `⚡保活: ${keepText}`;
+          setPill(pKeep, keepClass, `⚡保活: ${keepText}`);
         }
         const pTask = document.getElementById(`pill-task-${acc.id}-${targetId}`);
         if (pTask) {
@@ -1656,8 +1693,7 @@ function updateAccountsInPlace(filteredAccounts) {
             taskClass = 'pill-paused';
             taskText = '待命';
           }
-          pTask.className = `pill-toggle-btn ${taskClass}`;
-          pTask.innerText = `🎯任务: ${taskText}`;
+          setPill(pTask, taskClass, `🎯任务: ${taskText}`);
         }
         const pInterval = document.getElementById(`pill-interval-${acc.id}-${targetId}`);
         if (pInterval && document.activeElement !== pInterval) {
