@@ -2235,3 +2235,95 @@ details[open] > summary .chev { transform: rotate(180deg); }
 
 /* 【2026-10-23 v2.6.2 无闪刷新】监视区与倒计时数字用等宽数字，秒数变化不撑动布局 */
 .mon-line, .mon-sub, .vm-mon-row, [id^="acc-countdown-"] { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+ * 【2026-10-23 v2.7.0】单屏壳层 + iPhone 后台式叠放 Deck
+ * - 整页 100dvh 不滚动：页眉/统计/页签自适应高，Deck 吃满剩余
+ *   高度，日志面板定高内滚，页脚贴底。
+ * - 卡片绝对定位叠放，位移/缩放/透明度由 layoutDeck 计算；
+ *   过渡只用 transform/opacity/filter（GPU 合成，丝滑不卡）。
+ * ============================================================ */
+html, body { height: 100%; }
+body { overflow: hidden; padding: 0; }
+.container { height: 100dvh; display: flex; flex-direction: column; padding: 12px 20px 6px; box-sizing: border-box; }
+.container > header { flex: none; }
+.container > .stats-grid, .container > .stats-row { flex: none; }
+#main-section-header { flex: none; }
+.deck-wrap { position: relative; flex: 1 1 auto; min-height: 0; margin-bottom: 6px; }
+.container > footer { flex: none; margin-top: 6px !important; padding: 8px 0 6px 0 !important; }
+.log-panel { flex: none; margin-top: 8px; }
+.log-content { height: 132px; }
+
+#accounts-container { position: absolute; inset: 0; }
+#accounts-container:not(.deck) { display: block; overflow-y: auto; margin: 0; }
+#accounts-container.deck { display: block; margin: 0; overflow: visible; }
+
+.deck .account-card {
+  position: absolute; top: 0; left: 50%;
+  width: min(620px, 76%); height: 100%;
+  margin: 0; box-sizing: border-box;
+  overflow: hidden;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease, filter 0.45s ease, box-shadow 0.3s ease;
+  will-change: transform;
+}
+.deck .account-card.fx-in { animation: none; } /* deck 里不再重播网格入场动画 */
+.deck .account-card.deck-front {
+  overflow-y: auto; overflow-x: hidden;
+  box-shadow: 0 24px 48px -16px rgba(12, 34, 33, 0.28), 0 4px 14px rgba(12, 34, 33, 0.10);
+  scrollbar-width: thin; scrollbar-color: rgba(23, 108, 107, 0.35) transparent;
+}
+.deck .account-card.deck-front::-webkit-scrollbar { width: 6px; }
+.deck .account-card.deck-front::-webkit-scrollbar-thumb { background: rgba(23, 108, 107, 0.35); border-radius: 3px; }
+.deck .account-card.deck-side {
+  cursor: pointer;
+  filter: saturate(0.94) brightness(0.99);
+  box-shadow: 0 14px 30px -12px rgba(12, 34, 33, 0.22);
+}
+.deck .account-card.deck-side::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(233,238,237,0.22));
+  pointer-events: none;
+}
+.deck .account-card.deck-side:hover { filter: saturate(1) brightness(1); }
+
+#deck-nav { position: absolute; inset: 0; pointer-events: none; z-index: 60; }
+.deck-arrow {
+  pointer-events: auto; position: absolute; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid rgba(23, 60, 59, 0.12);
+  background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(6px);
+  color: var(--accent); font-size: 24px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 16px rgba(12, 34, 33, 0.14);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+.deck-arrow:hover { background: #ffffff; transform: translateY(-50%) scale(1.08); }
+#deck-prev { left: 10px; }
+#deck-next { right: 10px; }
+#deck-dots {
+  pointer-events: auto; position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+  display: flex; gap: 7px; padding: 6px 10px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(6px);
+  border: 1px solid rgba(23, 60, 59, 0.08);
+}
+.deck-dot {
+  width: 7px; height: 7px; border-radius: 999px; border: none; cursor: pointer;
+  background: rgba(23, 60, 59, 0.28); padding: 0;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.deck-dot.active { width: 22px; background: var(--accent); }
+
+.logo-robot { background: transparent !important; box-shadow: none !important; }
+.logo-robot img { width: 34px; height: 34px; object-fit: contain; display: block; }
+
+@media (max-height: 620px) {
+  body { overflow: auto; }
+  .container { height: auto; min-height: 100dvh; }
+  .deck-wrap { flex: none; height: 68vh; }
+}
+@media (max-width: 760px) {
+  .deck .account-card { width: 88%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .deck .account-card { transition: none; }
+}

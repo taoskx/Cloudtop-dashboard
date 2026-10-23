@@ -47,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
   checkCurrentUser();
   loadStatus();
   loadAccounts();
+  initDeckEvents();
   // 5 秒自动轮询一次官方真实任务进度与保活心跳
   setInterval(() => {
     loadAccounts(true);
@@ -1705,6 +1706,146 @@ function updateAccountsInPlace(filteredAccounts) {
 }
 
 // 账号卡片 HTML 模板生成
+
+// ============================================================
+// 【2026-10-23 v2.7.0】iPhone 后台式叠放 Deck 引擎
+// ------------------------------------------------------------
+// 全部卡片叠放在一屏内：聚焦卡居中全尺寸可操作，两侧卡缩小错层
+// 露出边缘；悬停侧卡轻探预览、点击侧卡平滑切换聚焦，滚轮/方向键
+// 亦可切换。所有动画只用 transform/opacity（GPU 合成，不卡顿）。
+// ============================================================
+let deckFocusIdx = 0;
+let deckEventsBound = false;
+
+function deckTransformFor(d, peek) {
+  const ad = Math.abs(d);
+  let x = 0, sc = 1;
+  if (d !== 0) {
+    const dir = d > 0 ? 1 : -1;
+    if (ad === 1) { x = dir * 34; sc = 0.93; }
+    else if (ad === 2) { x = dir * 68; sc = 0.87; }
+    else { x = dir * 100; sc = 0.82; }
+    if (peek) { x -= dir * 7; sc += 0.02; }
+  }
+  return `translate(-50%, 0) translateX(${x}%) scale(${sc})`;
+}
+
+function setDeckNavVisible(v) {
+  const nav = document.getElementById('deck-nav');
+  if (nav) nav.style.display = v ? 'block' : 'none';
+}
+
+function renderDeckDots(n, focus) {
+  const dots = document.getElementById('deck-dots');
+  if (!dots) return;
+  let html = '';
+  for (let i = 0; i < n; i++) {
+    html += `<button class="deck-dot${i === focus ? ' active' : ''}" onclick="deckFocusTo(${i})" aria-label="第 ${i + 1} 张卡片"></button>`;
+  }
+  if (dots.__html !== html) { dots.__html = html; dots.innerHTML = html; }
+}
+
+function layoutDeck() {
+  const container = document.getElementById('accounts-container');
+  if (!container || !container.classList.contains('deck')) return;
+  const cards = Array.from(container.querySelectorAll(':scope > .account-card'));
+  const n = cards.length;
+  if (!n) { setDeckNavVisible(false); return; }
+  let focus = deckFocusIdx;
+  try {
+    const savedId = localStorage.getItem('cloudtop-deck-focus');
+    if (savedId) {
+      const i = cards.findIndex(c => c.dataset.accId === savedId);
+      if (i >= 0) focus = i;
+    }
+  } catch (e) { /* 隐私模式等场景忽略 */ }
+  focus = Math.max(0, Math.min(focus, n - 1));
+  deckFocusIdx = focus;
+  cards.forEach((card, i) => {
+    const d = i - focus;
+    const ad = Math.abs(d);
+    card.dataset.deckD = d;
+    card.style.transform = deckTransformFor(d, false);
+    card.style.opacity = d === 0 ? '1' : ad === 1 ? '0.96' : ad === 2 ? '0.7' : '0';
+    card.style.zIndex = String(40 - ad * 10);
+    card.style.pointerEvents = ad >= 3 ? 'none' : 'auto';
+    card.classList.toggle('deck-front', d === 0);
+    card.classList.toggle('deck-side', d !== 0);
+  });
+  renderDeckDots(n, focus);
+  setDeckNavVisible(n > 1);
+}
+
+function deckFocusTo(idx) {
+  const container = document.getElementById('accounts-container');
+  if (!container) return;
+  const cards = container.querySelectorAll(':scope > .account-card');
+  if (!cards.length) return;
+  deckFocusIdx = Math.max(0, Math.min(idx, cards.length - 1));
+  const id = cards[deckFocusIdx].dataset.accId;
+  try { localStorage.setItem('cloudtop-deck-focus', id); } catch (e) { /* 忽略 */ }
+  layoutDeck();
+}
+
+function initDeckEvents() {
+  const container = document.getElementById('accounts-container');
+  if (!container || deckEventsBound) return;
+  deckEventsBound = true;
+
+  // 点击侧卡：拦截其内部控件的触发，只做聚焦切换；前卡点击照常操作
+  container.addEventListener('click', (e) => {
+    const card = e.target.closest('.account-card');
+    if (!card || card.classList.contains('deck-front')) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const cards = Array.from(container.querySelectorAll(':scope > .account-card'));
+    deckFocusTo(cards.indexOf(card));
+  }, true);
+
+  // 悬停侧卡：向中心轻探预览；移开恢复
+  container.addEventListener('mouseover', (e) => {
+    const card = e.target.closest('.account-card');
+    if (!card || card.classList.contains('deck-front') || card.__peeked) return;
+    card.__peeked = true;
+    const d = parseInt(card.dataset.deckD || '0', 10);
+    if (d !== 0) {
+      card.style.transform = deckTransformFor(d, true);
+      card.style.zIndex = '35';
+    }
+  });
+  container.addEventListener('mouseout', (e) => {
+    const card = e.target.closest('.account-card');
+    if (!card || (e.relatedTarget && card.contains(e.relatedTarget))) return;
+    if (card.__peeked) { card.__peeked = false; layoutDeck(); }
+  });
+
+  // 滚轮（在侧卡/背景上）切换聚焦；前卡内部照常滚动
+  let lastWheel = 0;
+  container.addEventListener('wheel', (e) => {
+    if (!container.classList.contains('deck')) return;
+    if (e.target.closest('.deck-front')) return;
+    e.preventDefault();
+    const now = Date.now();
+    if (now - lastWheel < 260) return;
+    lastWheel = now;
+    deckFocusTo(deckFocusIdx + (e.deltaY > 0 ? 1 : -1));
+  }, { passive: false });
+
+  // 方向键切换（输入框聚焦时不抢）
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (!container.classList.contains('deck')) return;
+    deckFocusTo(deckFocusIdx + (e.key === 'ArrowRight' ? 1 : -1));
+  });
+
+  const prev = document.getElementById('deck-prev');
+  const next = document.getElementById('deck-next');
+  if (prev) prev.addEventListener('click', () => deckFocusTo(deckFocusIdx - 1));
+  if (next) next.addEventListener('click', () => deckFocusTo(deckFocusIdx + 1));
+}
+
 function renderAccounts(isSilent = false) {
   const container = document.getElementById("accounts-container");
   if (!container) return;
@@ -1714,6 +1855,8 @@ function renderAccounts(isSilent = false) {
 
   // 如果未登录，严格阻断访客查看云电脑信息，只显示登录注册引导
   if (!currentUser) {
+    container.classList.remove('deck');
+    setDeckNavVisible(false);
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 48px 24px; background: var(--bg-secondary); border-radius: var(--radius); border: 1px dashed var(--border); box-shadow: var(--shadow);">
         <div style="font-size: 40px; margin-bottom: 12px;">🔒</div>
@@ -1755,6 +1898,8 @@ function renderAccounts(isSilent = false) {
   const filteredAccounts = getFilteredAccounts();
 
   if (!filteredAccounts || filteredAccounts.length === 0) {
+    container.classList.remove('deck');
+    setDeckNavVisible(false);
     const tabNameMap = { ydpc: '移动爱家', ctyun: '天翼云电脑', ecloud: '移动公众' };
     const tabName = tabNameMap[activeAccountViewTab] || '云电脑';
     container.innerHTML = `
@@ -1766,71 +1911,43 @@ function renderAccounts(isSilent = false) {
     return;
   }
 
-  const cols = getGridColumns();
-  const slots = loadGridSlots(filteredAccounts, cols);
+  // 【2026-10-23 v2.7.0】卡片改 iPhone 后台式叠放 deck：排列顺序沿用已保存的插槽顺序（去掉空槽），
+  // 呈现由 layoutDeck 按聚焦位置计算每张卡的位移/缩放/层级；页面不再滚动。
+  const slots = loadGridSlots(filteredAccounts, getGridColumns());
+  const orderedIds = [];
+  slots.forEach(id => { if (id && !orderedIds.includes(id)) orderedIds.push(id); });
+  filteredAccounts.forEach(a => { if (!orderedIds.includes(a.id)) orderedIds.push(a.id); });
 
-  // 2. 检查是否可无感局部原地更新 (In-Place Update)
-  // 如果现有的 DOM 卡片结构和 slots 一致，直接更新动态文本与指标，100% 避免销毁 DOM 和触发表单/滚动条复位！
+  // 原地更新：现有卡片与目标顺序完全一致时，只增量刷新数据并重排 deck
   if (isSilent) {
     const existingChildren = container.children;
-    let matchExact = existingChildren.length === slots.length;
+    let matchExact = existingChildren.length === orderedIds.length;
     if (matchExact) {
-      for (let i = 0; i < slots.length; i++) {
-        const expectedAccId = slots[i];
+      for (let i = 0; i < orderedIds.length; i++) {
         const el = existingChildren[i];
-        if (!expectedAccId) {
-          if (!el.classList.contains("grid-empty-slot")) { matchExact = false; break; }
-        } else {
-          if (!el.classList.contains("account-card") || el.dataset.accId !== expectedAccId) { matchExact = false; break; }
-        }
+        if (!el.classList.contains("account-card") || el.dataset.accId !== orderedIds[i]) { matchExact = false; break; }
       }
     }
-
     if (matchExact) {
       updateAccountsInPlace(filteredAccounts);
+      layoutDeck();
       return;
     }
-  }
-
-  // 3. 结构发生变动时的平滑重绘：锁定高度与滚动位置
-  const prevScrollY = window.scrollY || window.pageYOffset || 0;
-  const currentHeight = container.offsetHeight;
-  if (currentHeight > 0) {
-    container.style.minHeight = `${currentHeight}px`;
   }
 
   const fragment = document.createDocumentFragment();
-
-  slots.forEach((accId, slotIndex) => {
-    if (!accId) {
-      const emptySlot = document.createElement("div");
-      emptySlot.className = "grid-empty-slot";
-      emptySlot.dataset.slot = slotIndex;
-      emptySlot.innerHTML = "";
-      emptySlot.addEventListener("dragover", handleSlotDragOver);
-      emptySlot.addEventListener("dragleave", handleSlotDragLeave);
-      emptySlot.addEventListener("drop", handleSlotDrop);
-      fragment.appendChild(emptySlot);
-      return;
-    }
-
+  orderedIds.forEach((accId, idx) => {
     const acc = filteredAccounts.find(a => a.id === accId);
     if (!acc) return;
-
-    const card = buildAccountCardElement(acc, slotIndex);
+    const card = buildAccountCardElement(acc, idx);
+    card.draggable = false; // deck 模式不使用 HTML5 拖拽排序（点击聚焦切换）
     fragment.appendChild(card);
   });
 
   container.innerHTML = "";
   container.appendChild(fragment);
-
-  // 渲染完成释放高度并确保滚动位置绝对稳定
-  requestAnimationFrame(() => {
-    container.style.minHeight = "";
-    if (Math.abs(window.scrollY - prevScrollY) > 2) {
-      window.scrollTo({ top: prevScrollY, behavior: "instant" });
-    }
-  });
+  container.classList.add('deck');
+  layoutDeck();
 }
 
 // ==========================================

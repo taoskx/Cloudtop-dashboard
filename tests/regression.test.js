@@ -5373,6 +5373,23 @@ test('前端接入：解锁弹窗与作者设置存在，登录入口在锁定�
 });
 
 // ============================================================================
+// 35. v2.7.0 叠放 Deck（2026-10-23 用户指令：iPhone 后台式叠放、一屏不滚动）
+// ============================================================================
+test('静态：叠放 deck 引擎与单屏壳层接线', () => {
+  const appJs = read('app/static/app.js');
+  const css = read('app/static/style.css');
+  const html = read('app/static/index.html');
+  assert.ok(/function layoutDeck\(\)/.test(appJs) && /function deckFocusTo\(/.test(appJs),
+    'deck 引擎必须存在（layoutDeck 计算位移/层级，deckFocusTo 切换聚焦）');
+  assert.ok(/container\.classList\.add\('deck'\)/.test(appJs) && /orderedIds/.test(appJs),
+    'renderAccounts 必须按顺序渲染并进入 deck 模式');
+  assert.ok(/id="deck-nav"/.test(html) && /id="deck-dots"/.test(html),
+    '页面必须有 deck 导航（箭头 + 圆点）');
+  assert.ok(/\.deck \.account-card/.test(css) && /100dvh/.test(css),
+    '样式必须有 deck 卡片规则与 100dvh 单屏壳层');
+});
+
+// ============================================================================
 // 汇总输出（先跑完全部异步断言，再统一出结果）
 // ============================================================================
 (async () => {

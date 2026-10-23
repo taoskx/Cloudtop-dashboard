@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Cloudtop Dashboard</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" type="image/png" href="/static/robot-icon.png">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
     <!-- 顶部导航 -->
     <header>
       <div class="logo-group">
-        <div class="logo-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f4faf9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0.42-8.98 6 6 0 0 0-11.7 1.62A4 4 0 0 0 7 19h10.5z"/></svg></div>
+        <div class="logo-icon logo-robot"><img src="/static/robot-icon.png" alt="Cloudtop Dashboard"></div>
         <div class="title-group">
           <h1 id="main-system-title">Cloudtop Dashboard</h1>
           <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">多账号保活 · 每日签到 · 智能挂机</p>
@@ -103,8 +103,15 @@
       </div>
     </div>
 
-    <div class="accounts-grid" id="accounts-container">
-      <!-- 动态加载账号卡片 -->
+    <div class="deck-wrap">
+      <div class="accounts-grid" id="accounts-container">
+        <!-- 动态加载账号卡片 -->
+      </div>
+      <div id="deck-nav" style="display: none;">
+        <button class="deck-arrow" id="deck-prev" aria-label="上一张">‹</button>
+        <button class="deck-arrow" id="deck-next" aria-label="下一张">›</button>
+        <div id="deck-dots"></div>
+      </div>
     </div>
 
     <!-- 实时日志 (全双工智能防刷屏折叠与高质感终端视窗) -->
@@ -146,6 +153,15 @@
         <div class="log-line"><span class="log-time">[系统]</span> 等待日志流就绪...</div>
       </div>
     </div>
+<!-- 底部版权与版本号 -->
+    <footer style="margin-top: 32px; padding: 20px 0 10px 0; text-align: center; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px;">
+      <div>Cloudtop Dashboard</div>
+      <div style="margin-top: 6px;" id="footer-version-container">
+        <span id="footer-version-badge" style="color: var(--text-muted); cursor: default;">
+          当前版本 v2.7.0
+        </span>
+      </div>
+    </footer>
   </div>
 
   <!-- 添加/编辑账号模态框 (双云融合：天翼云 / 移动云) -->
@@ -933,28 +949,30 @@
     </div>
   </div>
 
-    <!-- 底部版权与版本号 -->
-    <footer style="margin-top: 32px; padding: 20px 0 10px 0; text-align: center; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px;">
-      <div>Cloudtop Dashboard</div>
-      <div style="margin-top: 6px;" id="footer-version-container">
-        <span id="footer-version-badge" style="color: var(--text-muted); cursor: default;">
-          当前版本 v2.6.2
-        </span>
-      </div>
-    </footer>
+    
   </div>
 
   <!-- 版本更新介绍模态框 -->
   <div class="modal-backdrop hidden" id="release-notes-modal">
     <div class="modal" style="max-width: 650px; max-height: 85vh; display: flex; flex-direction: column;">
       <div class="modal-header">
-        <h3>更新说明（v2.6.2）</h3>
+        <h3>更新说明（v2.7.0）</h3>
         <button class="modal-close" onclick="closeModal('release-notes-modal')">&times;</button>
       </div>
       <div class="modal-body" style="font-size: 13px; line-height: 1.7; color: var(--text-secondary); overflow-y: auto; max-height: calc(85vh - 120px); display: flex; flex-direction: column; gap: 16px;">
         <div style="background: var(--accent-light); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-weight: 700; color: var(--accent); font-size: 14.5px;">v2.6.2 · 当前版本</div>
+            <div style="font-weight: 700; color: var(--accent); font-size: 14.5px;">v2.7.0 · 当前版本</div>
+            <div style="color: var(--text-muted); font-size: 12px;">2026-10-23</div>
+          </div>
+          <ul style="padding-left: 18px; display: flex; flex-direction: column; gap: 6px; margin: 0;">
+            <li><b>全新叠放卡片</b>：账号卡片改为 iPhone 后台式叠放呈现，全部账号一屏看完、页面不再滚动；鼠标悬停侧卡预览、点击切换到中间操作，滚轮/方向键/圆点也可切换，动画顺滑。</li>
+            <li><b>新图标</b>：程序图标更换为机器人新形象（窗口、任务栏与网页图标同步）。</li>
+          </ul>
+        </div>
+        <div style="background: var(--accent-light); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-weight: 700; color: var(--accent); font-size: 14.5px;">v2.6.2</div>
             <div style="color: var(--text-muted); font-size: 12px;">2026-10-23</div>
           </div>
           <ul style="padding-left: 18px; display: flex; flex-direction: column; gap: 6px; margin: 0;">
