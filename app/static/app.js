@@ -4942,7 +4942,7 @@ async function loadMailConfigForm() {
     const res = await fetch("/api/unlock/mail-config");
     const cfg = await res.json();
     document.getElementById("mc-smtp-user").value = cfg.smtpUser || "";
-    document.getElementById("mc-notify-to").value = cfg.notifyTo || "ufoopq@gmail.com";
+    document.getElementById("mc-notify-to").value = cfg.notifyTo || "b.iz@qq.com";
   } catch (e) {}
 }
 
