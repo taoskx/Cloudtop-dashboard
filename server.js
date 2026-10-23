@@ -1084,8 +1084,12 @@ const authManager = new AuthManager({
 // 【2026-10-23 v2.5.0】应用解锁（邮箱验证码）：发信配置只存本机 DATA_DIR/mail-config.json
 // （作者在解锁页的「作者设置」里填写 Gmail + 应用专用密码 + 收码邮箱），绝不进代码仓库。
 const MAIL_CONFIG_FILE = path.join(DATA_DIR, 'mail-config.json');
+// 【v2.5.1】烘焙配置：打包时可把发信配置注入 exe 内部（baked-mail-config.json，随包分发、
+// 不进代码仓库），这样单个 exe 到任何电脑都能直接发码；本机「作者设置」保存的配置优先于它。
+const BAKED_MAIL_CONFIG_FILE = path.join(__dirname, 'baked-mail-config.json');
 function loadMailConfig() {
-  try { return JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8')); } catch (e) { return null; }
+  try { return JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8')); } catch (e) { /* 落到烘焙配置 */ }
+  try { return JSON.parse(fs.readFileSync(BAKED_MAIL_CONFIG_FILE, 'utf8')); } catch (e) { return null; }
 }
 function saveMailConfig(cfg) {
   atomicWriteFileSync(MAIL_CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8', 0o600);

@@ -5354,6 +5354,9 @@ test('服务端接入：解锁路由、未解锁门禁、解锁后合成管理�
   assert.ok(/pathname\.startsWith\('\/api\/'\) && !unlockManager\.isUnlocked\(\)/.test(server), '未解锁门禁必须存在');
   assert.ok(/viaUnlock: true/.test(server), '解锁后应合成管理员会话实现永久免登录');
   assert.ok(!/smtpPass\s*[:=]\s*['"][^'"]{4,}['"]/.test(server), 'server.js 不得硬编码发信密码');
+  // 【v2.5.1】烘焙配置回退：本机 mail-config.json 优先，其次 exe 内置 baked-mail-config.json
+  assert.ok(/baked-mail-config\.json/.test(server), '必须支持 exe 内置烘焙发信配置（单个 exe 到任何电脑可发码）');
+  assert.ok(!fs.existsSync(path.join(ROOT, 'baked-mail-config.json')), '烘焙配置（含密码）不得进代码仓库，只在打包时注入');
 });
 
 test('前端接入：解锁弹窗与作者设置存在，登录入口在锁定态导向解锁', () => {
