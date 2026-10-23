@@ -5249,6 +5249,124 @@ testAsync('行为：pingCag 对 SCG 机与材料缺失机必须"返回未执行"
 });
 
 // ============================================================================
+// 组 34 · 应用解锁（邮箱验证码）（用户 2026-10-23：软件不免费共享）
+// 规则：验证码只发到作者邮箱、人工转交；20 分钟有效；输错 3 次锁定 1 小时；
+// 输对一次永久解锁（免登录）。发信凭据只存本机 mail-config.json，绝不进代码。
+// ============================================================================
+group('组 34 · 应用解锁（邮箱验证码）');
+
+function makeUnlockHarness() {
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctyun-unlock-'));
+  const { UnlockManager } = require(path.join(ROOT, 'app', 'unlock_manager.js'));
+  let nowVal = 1700000000000;
+  const sent = [];
+  const cfg = { smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: 'sender@gmail.com', smtpPass: 'xxxx', notifyTo: 'ufoopq@gmail.com' };
+  const mgr = new UnlockManager({
+    dataDir: dir,
+    now: () => nowVal,
+    loadMailConfig: () => cfg,
+    sendMail: async (c, mail) => { sent.push({ cfg: c, mail }); return { success: true }; },
+  });
+  return { dir, mgr, sent, cfg, advance: (ms) => { nowVal += ms; } };
+}
+function codeFromMail(sent) {
+  const m = /验证码：(\d{6})/.exec(sent[sent.length - 1].mail.text);
+  assert.ok(m, '邮件正文必须包含 6 位验证码');
+  return m[1];
+}
+
+testAsync('解锁全流程：申请 → 验证码只发作者邮箱 → 输对永久解锁并落盘', async () => {
+  const h = makeUnlockHarness();
+  const r1 = await h.mgr.requestCode('friend@example.com');
+  assert.ok(r1.success, '申请应成功');
+  assert.strictEqual(h.sent.length, 1, '应发出一封邮件');
+  assert.strictEqual(h.sent[0].mail.to, 'ufoopq@gmail.com', '验证码只能发到作者邮箱，绝不直发申请人');
+  assert.ok(h.sent[0].mail.text.includes('friend@example.com'), '邮件正文应标明申请人邮箱供作者辨认');
+  const code = codeFromMail(h.sent);
+  const bad = h.mgr.verify('friend@example.com', code === '000000' ? '111111' : '000000');
+  assert.ok(!bad.success && bad.attemptsLeft === 2, '输错一次应提示还可尝试 2 次');
+  const ok = h.mgr.verify('friend@example.com', code);
+  assert.ok(ok.success, '输对应解锁成功');
+  assert.ok(h.mgr.isUnlocked(), '状态应为已解锁');
+  // 落盘：新实例读回应仍是已解锁（永久免登录）
+  const { UnlockManager } = require(path.join(ROOT, 'app', 'unlock_manager.js'));
+  const mgr2 = new UnlockManager({ dataDir: h.dir, now: () => Date.now(), loadMailConfig: () => h.cfg, sendMail: async () => ({}) });
+  assert.ok(mgr2.isUnlocked(), '解锁状态必须落盘，重启后仍有效');
+  assert.strictEqual(mgr2.status().unlockedEmail, 'friend@example.com');
+  // 验证码只存哈希：状态文件里不得出现明文码
+  const raw = fs.readFileSync(path.join(h.dir, 'app-unlock.json'), 'utf8');
+  assert.ok(!raw.includes(code), '状态文件不得保存验证码明文');
+});
+
+testAsync('输错 3 次锁定 1 小时：锁定期间不能输码也不能再申请，1 小时后恢复', async () => {
+  const h = makeUnlockHarness();
+  await h.mgr.requestCode('a@b.com');
+  const code = codeFromMail(h.sent);
+  const wrong = code === '999999' ? '888888' : '999999';
+  h.mgr.verify('a@b.com', wrong);
+  h.mgr.verify('a@b.com', wrong);
+  const third = h.mgr.verify('a@b.com', wrong);
+  assert.ok(!third.success && third.locked, '第三次输错应锁定');
+  const during = h.mgr.verify('a@b.com', code);
+  assert.ok(!during.success && during.locked, '锁定期间即便输对也应拒绝');
+  const reqDuring = await h.mgr.requestCode('a@b.com');
+  assert.ok(!reqDuring.success && reqDuring.locked, '锁定期间不得再申请验证码');
+  h.advance(61 * 60 * 1000);
+  const reqAfter = await h.mgr.requestCode('a@b.com');
+  assert.ok(reqAfter.success, '锁定 1 小时后应可重新申请');
+});
+
+testAsync('验证码 20 分钟过期；重发使旧码失效', async () => {
+  const h = makeUnlockHarness();
+  await h.mgr.requestCode('a@b.com');
+  const code1 = codeFromMail(h.sent);
+  h.advance(21 * 60 * 1000);
+  const expired = h.mgr.verify('a@b.com', code1);
+  assert.ok(!expired.success && /过期/.test(expired.error), '超过 20 分钟应报过期');
+  await h.mgr.requestCode('a@b.com');
+  const code2 = codeFromMail(h.sent);
+  h.advance(61 * 1000);
+  await h.mgr.requestCode('a@b.com');
+  const code3 = codeFromMail(h.sent);
+  if (code2 !== code3) {
+    const oldTry = h.mgr.verify('a@b.com', code2);
+    assert.ok(!oldTry.success, '重发后旧验证码必须失效');
+  }
+  const ok = h.mgr.verify('a@b.com', code3);
+  assert.ok(ok.success, '最新验证码应可解锁');
+});
+
+testAsync('未配置发信邮箱时申请干净失败（不抛异常、不发信）', async () => {
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctyun-unlock-'));
+  const { UnlockManager } = require(path.join(ROOT, 'app', 'unlock_manager.js'));
+  const mgr = new UnlockManager({ dataDir: dir, now: () => Date.now(), loadMailConfig: () => null, sendMail: async () => { throw new Error('不应被调用'); } });
+  const r = await mgr.requestCode('a@b.com');
+  assert.ok(!r.success && r.notConfigured, '未配置时应返回 notConfigured');
+  assert.strictEqual(mgr.status().configured, false);
+});
+
+test('服务端接入：解锁路由、未解锁门禁、解锁后合成管理员会话', () => {
+  for (const route of ['/api/unlock/status', '/api/unlock/request', '/api/unlock/verify', '/api/unlock/mail-config']) {
+    assert.ok(server.includes(`pathname === '${route}'`), `缺少解锁路由 ${route}`);
+  }
+  assert.ok(/pathname\.startsWith\('\/api\/'\) && !unlockManager\.isUnlocked\(\)/.test(server), '未解锁门禁必须存在');
+  assert.ok(/viaUnlock: true/.test(server), '解锁后应合成管理员会话实现永久免登录');
+  assert.ok(!/smtpPass\s*[:=]\s*['"][^'"]{4,}['"]/.test(server), 'server.js 不得硬编码发信密码');
+});
+
+test('前端接入：解锁弹窗与作者设置存在，登录入口在锁定态导向解锁', () => {
+  const html = read('app/static/index.html');
+  const appJs = read('app/static/app.js');
+  assert.ok(html.includes('id="unlock-modal"'), '缺少解锁弹窗');
+  assert.ok(html.includes('id="mail-config-form"'), '缺少作者设置（发信配置）表单');
+  assert.ok(html.includes('id="unlock-code"'), '缺少验证码输入框');
+  assert.ok(/function initUnlockGate\(/.test(appJs), '缺少解锁门禁初始化');
+  assert.ok(/appLocked\) \{ openModal\("unlock-modal"\)/.test(appJs), '锁定态下登录入口必须导向解锁弹窗');
+});
+
+// ============================================================================
 // 汇总输出（先跑完全部异步断言，再统一出结果）
 // ============================================================================
 (async () => {

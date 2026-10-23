@@ -21,6 +21,8 @@ const { performCagAuthHold } = require('./app/ydpc/cag_client');
 const { YdpcClient } = require('./app/ydpc/ydpc_client');
 const { EcloudClient, LOG_SOURCE: ECLOUD_LOG_SOURCE, INTERACTIVE_BRANCHES } = require('./app/ecloud/ecloud_client');
 const { LogPersister } = require('./app/persist_log');
+const { UnlockManager } = require('./app/unlock_manager');
+const { sendMail } = require('./app/smtp_mailer');
 
 // 全局异常拦截看门狗 (确保守护服务长期稳定运行不宕机)
 // 【2026-09-27 退出取证】现场：面板曾静默死亡一次（exit=1、stdout/stderr 零输出、
@@ -1077,6 +1079,21 @@ const authManager = new AuthManager({
   get config() { return appConfig; },
   saveConfig: () => saveConfig(appConfig),
   sessionStore: authSessionStore
+});
+
+// 【2026-10-23 v2.5.0】应用解锁（邮箱验证码）：发信配置只存本机 DATA_DIR/mail-config.json
+// （作者在解锁页的「作者设置」里填写 Gmail + 应用专用密码 + 收码邮箱），绝不进代码仓库。
+const MAIL_CONFIG_FILE = path.join(DATA_DIR, 'mail-config.json');
+function loadMailConfig() {
+  try { return JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8')); } catch (e) { return null; }
+}
+function saveMailConfig(cfg) {
+  atomicWriteFileSync(MAIL_CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8', 0o600);
+}
+const unlockManager = new UnlockManager({
+  dataDir: DATA_DIR,
+  sendMail,
+  loadMailConfig
 });
 
 // ==========================================================
@@ -3408,8 +3425,17 @@ function getSessionFromReq(req, parsedUrl = null) {
   const session = authManager.verifySession(token);
   if (session) {
     session.token = token;
+    return session;
   }
-  return session;
+  // 【v2.5.0】应用已解锁 ⇒ 永久免登录：无有效会话时合成管理员会话，
+  // 所有既有接口照常工作，用户不再看到登录流程（退出登录也不影响解锁状态）。
+  if (typeof unlockManager !== 'undefined' && unlockManager.isUnlocked()) {
+    const admin = (appConfig.users || []).find(u => u.role === 'admin');
+    if (admin) {
+      return { userId: admin.id, username: admin.username, role: 'admin', maxQuota: admin.maxQuota, avatar: admin.avatar || '', viaUnlock: true };
+    }
+  }
+  return null;
 }
 
 // 缓存与代理天翼云电脑官方 Web 资产与模板
@@ -3834,6 +3860,71 @@ function rewardNeedsDesktop(prodId, prodType) {
       await proxyStaticAsset(res, targetUrl);
     }
     return;
+  }
+
+  // 1.5 【v2.5.0】应用解锁接口与门禁
+  if (pathname === '/api/unlock/status' && req.method === 'GET') {
+    jsonResponse(res, unlockManager.status());
+    return;
+  }
+  if (pathname === '/api/unlock/request' && req.method === 'POST') {
+    const body = await parseJsonBody(req);
+    const result = await unlockManager.requestCode(body.email);
+    if (result.success) appendLog('Auth', `解锁验证码已发送至作者邮箱（申请人: ${body.email}）`, 'info');
+    jsonResponse(res, result, result.success ? 200 : 400);
+    return;
+  }
+  if (pathname === '/api/unlock/verify' && req.method === 'POST') {
+    const body = await parseJsonBody(req);
+    const result = unlockManager.verify(body.email, body.code);
+    if (result.success) appendLog('Auth', `应用已通过邮箱验证码解锁（${body.email}），永久免登录`, 'success');
+    jsonResponse(res, result, result.success ? 200 : 400);
+    return;
+  }
+  if (pathname === '/api/unlock/mail-config' && req.method === 'GET') {
+    // 只回配置状态与非敏感字段，密码绝不下发
+    const cfg = loadMailConfig() || {};
+    jsonResponse(res, {
+      configured: !!(cfg.smtpUser && cfg.smtpPass && cfg.notifyTo),
+      smtpHost: cfg.smtpHost || 'smtp.gmail.com',
+      smtpPort: cfg.smtpPort || 465,
+      smtpUser: cfg.smtpUser || '',
+      notifyTo: cfg.notifyTo || ''
+    });
+    return;
+  }
+  if (pathname === '/api/unlock/mail-config' && req.method === 'POST') {
+    // 作者设置：未解锁时可填（首次配置）；已解锁后仅管理员会话可改。
+    if (unlockManager.isUnlocked() && !getSessionFromReq(req, parsedUrl)) {
+      jsonResponse(res, { error: '无权修改发信配置' }, 403);
+      return;
+    }
+    const body = await parseJsonBody(req);
+    const prev = loadMailConfig() || {};
+    const cfg = {
+      smtpHost: String(body.smtpHost || prev.smtpHost || 'smtp.gmail.com').trim(),
+      smtpPort: parseInt(body.smtpPort) || prev.smtpPort || 465,
+      smtpUser: String(body.smtpUser || '').trim(),
+      smtpPass: String(body.smtpPass || '').trim() || prev.smtpPass || '',
+      fromName: '云电脑保活控制台',
+      notifyTo: String(body.notifyTo || '').trim()
+    };
+    if (!cfg.smtpUser || !cfg.smtpPass || !cfg.notifyTo) {
+      jsonResponse(res, { success: false, error: '发信邮箱、应用专用密码、收码邮箱都要填写' }, 400);
+      return;
+    }
+    saveMailConfig(cfg);
+    appendLog('Auth', `发信配置已更新（发信: ${cfg.smtpUser}，收码: ${cfg.notifyTo}）`, 'info');
+    jsonResponse(res, { success: true, message: '发信配置已保存' });
+    return;
+  }
+  // 门禁：未解锁且无会话时，业务 API 一律拒绝（静态资源与解锁接口不受影响）
+  if (pathname.startsWith('/api/') && !unlockManager.isUnlocked()) {
+    const openPath = pathname.startsWith('/api/unlock/') || pathname === '/api/auth/me' || pathname === '/api/auth/login';
+    if (!openPath && !getSessionFromReq(req, parsedUrl)) {
+      jsonResponse(res, { error: '应用未解锁，请先输入邮箱验证码解锁' }, 401);
+      return;
+    }
   }
 
   // 2. 实时日志 SSE 流与历史日志获取 (权限严格隔离：未登录完全不可看，普通用户仅看自己账号)

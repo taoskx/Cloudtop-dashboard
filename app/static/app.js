@@ -43,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderedLogLines.clear();
   const logBox = document.getElementById("log-content");
   if (logBox) logBox.innerHTML = "";
+  initUnlockGate();
   checkCurrentUser();
   loadStatus();
   loadAccounts();
@@ -4485,6 +4486,8 @@ function handleFileSelected(input) {
 // 多用户系统与管理员配额控制
 // ==========================================
 function openAuthModal() {
+  // 【v2.5.0】未解锁时，登录/注册入口一律导向解锁弹窗
+  if (typeof appLocked !== "undefined" && appLocked) { openModal("unlock-modal"); return; }
   document.getElementById("auth-username").value = "";
   document.getElementById("auth-password").value = "";
   switchAuthMode("login");
@@ -4854,3 +4857,105 @@ window.addEventListener("resize", () => {
   }, 250);
 });
 
+
+// ================= v2.5.0 应用解锁（邮箱验证码） =================
+let appLocked = false;
+
+async function initUnlockGate() {
+  try {
+    const res = await fetch("/api/unlock/status");
+    const st = await res.json();
+    if (st.unlocked) { appLocked = false; return; }
+    appLocked = true;
+    openModal("unlock-modal");
+    if (st.pendingEmail) document.getElementById("unlock-email").value = st.pendingEmail;
+    if (!st.configured) setUnlockMsg("作者尚未配置发信邮箱：请点下方「作者设置」填写，或直接联系作者。", "warn");
+    if (st.locked) showUnlockLocked(st.lockRemainSec);
+  } catch (e) { /* 状态接口不可达时不拦截，按原流程走 */ }
+}
+
+function setUnlockMsg(text, kind) {
+  const el = document.getElementById("unlock-msg");
+  if (!el) return;
+  el.style.display = text ? "block" : "none";
+  el.innerText = text || "";
+  el.style.color = kind === "error" ? "#c0453c" : (kind === "warn" ? "#b77a16" : "#2f7a55");
+}
+
+function showUnlockLocked(remainSec) {
+  const vBtn = document.getElementById("btn-unlock-verify");
+  const rBtn = document.getElementById("btn-unlock-request");
+  if (vBtn) vBtn.disabled = true;
+  if (rBtn) rBtn.disabled = true;
+  setUnlockMsg(`验证码连续输错 3 次，已锁定，还剩约 ${Math.ceil((remainSec || 3600) / 60)} 分钟`, "error");
+}
+
+async function requestUnlockCode() {
+  const email = document.getElementById("unlock-email").value.trim();
+  const btn = document.getElementById("btn-unlock-request");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/unlock/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+    const data = await res.json();
+    if (data.success) {
+      setUnlockMsg("验证码已发送到作者邮箱，请向作者索取后输入（20 分钟内有效）", "ok");
+      let left = 60;
+      btn.innerText = `${left} 秒后可重发`;
+      const t = setInterval(() => {
+        left -= 1;
+        if (left <= 0) { clearInterval(t); btn.disabled = false; btn.innerText = "重新发送验证码"; }
+        else btn.innerText = `${left} 秒后可重发`;
+      }, 1000);
+    } else {
+      setUnlockMsg(data.error || "发送失败", data.notConfigured ? "warn" : "error");
+      btn.disabled = false;
+      if (data.locked) showUnlockLocked(data.lockRemainSec);
+    }
+  } catch (e) { setUnlockMsg("网络异常，发送失败", "error"); btn.disabled = false; }
+}
+
+async function verifyUnlockCode() {
+  const email = document.getElementById("unlock-email").value.trim();
+  const code = document.getElementById("unlock-code").value.trim();
+  try {
+    const res = await fetch("/api/unlock/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, code }) });
+    const data = await res.json();
+    if (data.success) {
+      setUnlockMsg("解锁成功，正在进入控制台…", "ok");
+      setTimeout(() => location.reload(), 700);
+    } else {
+      setUnlockMsg(data.error || "解锁失败", "error");
+      if (data.locked) showUnlockLocked(data.lockRemainSec);
+    }
+  } catch (e) { setUnlockMsg("网络异常，解锁失败", "error"); }
+}
+
+function toggleMailConfigForm(ev) {
+  if (ev) ev.preventDefault();
+  const box = document.getElementById("mail-config-form");
+  box.classList.toggle("hidden");
+  if (!box.classList.contains("hidden")) loadMailConfigForm();
+}
+
+async function loadMailConfigForm() {
+  try {
+    const res = await fetch("/api/unlock/mail-config");
+    const cfg = await res.json();
+    document.getElementById("mc-smtp-user").value = cfg.smtpUser || "";
+    document.getElementById("mc-notify-to").value = cfg.notifyTo || "ufoopq@gmail.com";
+  } catch (e) {}
+}
+
+async function saveMailConfig() {
+  const body = {
+    smtpUser: document.getElementById("mc-smtp-user").value.trim(),
+    smtpPass: document.getElementById("mc-smtp-pass").value.trim(),
+    notifyTo: document.getElementById("mc-notify-to").value.trim()
+  };
+  try {
+    const res = await fetch("/api/unlock/mail-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.success) setUnlockMsg("发信配置已保存，现在可以申请验证码了", "ok");
+    else setUnlockMsg(data.error || "保存失败", "error");
+  } catch (e) { setUnlockMsg("网络异常，保存失败", "error"); }
+}

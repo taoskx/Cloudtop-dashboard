@@ -773,6 +773,52 @@
     </div>
   </div>
 
+  <!-- 应用解锁模态框（v2.5.0 邮箱验证码：验证码只发到作者邮箱，人工转交，输对一次永久解锁） -->
+  <div class="modal-backdrop hidden" id="unlock-modal">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>应用解锁</h3>
+      </div>
+      <div class="modal-body" style="gap: 14px; padding-top: 20px;">
+        <p style="font-size: 13px; line-height: 1.7; color: var(--text-secondary); margin: 0;">
+          本软件需作者授权使用。填写你的邮箱申请验证码，验证码将发送到<b>作者邮箱</b>，由作者转交给你；输入正确即永久解锁本机应用，之后不再需要登录。
+        </p>
+        <div class="form-group">
+          <label>你的邮箱</label>
+          <input type="email" class="form-control" id="unlock-email" placeholder="请输入邮箱地址" autocomplete="email">
+        </div>
+        <button type="button" class="btn" id="btn-unlock-request" onclick="requestUnlockCode()" style="width: 100%;">发送验证码到作者邮箱</button>
+        <div class="form-group">
+          <label>验证码</label>
+          <input type="text" class="form-control" id="unlock-code" placeholder="6 位验证码（20 分钟内有效）" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+        </div>
+        <div id="unlock-msg" class="form-text" style="display: none; font-size: 12.5px; line-height: 1.6;"></div>
+        <div style="text-align: right;">
+          <a href="#" onclick="toggleMailConfigForm(event)" style="font-size: 12px; color: var(--text-muted);">作者设置</a>
+        </div>
+        <div id="mail-config-form" class="hidden" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+          <div class="form-group">
+            <label>发信邮箱（Gmail）</label>
+            <input type="email" class="form-control" id="mc-smtp-user" placeholder="用于发送验证码的 Gmail">
+          </div>
+          <div class="form-group">
+            <label>应用专用密码</label>
+            <input type="password" class="form-control" id="mc-smtp-pass" placeholder="Google 账号生成的 16 位应用专用密码">
+            <div class="form-text" style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">在 Google 账号 → 安全 → 两步验证 → 应用专用密码中生成；不要填邮箱登录密码。配置只保存在本机。</div>
+          </div>
+          <div class="form-group">
+            <label>收码邮箱（作者邮箱）</label>
+            <input type="email" class="form-control" id="mc-notify-to" placeholder="验证码发送到这个邮箱">
+          </div>
+          <button type="button" class="btn btn-sm btn-primary" onclick="saveMailConfig()" style="width: 100%;">保存发信配置</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="btn-unlock-verify" onclick="verifyUnlockCode()" style="min-width: 120px;">解锁应用</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 修改个人密码/用户名模态框 -->
   <div class="modal-backdrop hidden" id="change-pwd-modal">
     <div class="modal">
@@ -892,7 +938,7 @@
       <div>云电脑保活控制台</div>
       <div style="margin-top: 6px;" id="footer-version-container">
         <span id="footer-version-badge" style="color: var(--text-muted); cursor: default;">
-          当前版本 v2.4.0
+          当前版本 v2.5.0
         </span>
       </div>
     </footer>
@@ -902,13 +948,24 @@
   <div class="modal-backdrop hidden" id="release-notes-modal">
     <div class="modal" style="max-width: 650px; max-height: 85vh; display: flex; flex-direction: column;">
       <div class="modal-header">
-        <h3>更新说明（v2.4.0）</h3>
+        <h3>更新说明（v2.5.0）</h3>
         <button class="modal-close" onclick="closeModal('release-notes-modal')">&times;</button>
       </div>
       <div class="modal-body" style="font-size: 13px; line-height: 1.7; color: var(--text-secondary); overflow-y: auto; max-height: calc(85vh - 120px); display: flex; flex-direction: column; gap: 16px;">
         <div style="background: var(--accent-light); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-weight: 700; color: var(--accent); font-size: 14.5px;">v2.4.0 · 当前版本</div>
+            <div style="font-weight: 700; color: var(--accent); font-size: 14.5px;">v2.5.0 · 当前版本</div>
+            <div style="color: var(--text-muted); font-size: 12px;">2026-10-23</div>
+          </div>
+          <ul style="padding-left: 18px; display: flex; flex-direction: column; gap: 6px; margin: 0;">
+            <li><b>邮箱验证码解锁</b>：软件需作者授权使用——使用者填邮箱申请，验证码只发送到作者邮箱、由作者转交；输对一次即永久解锁本机应用，不再需要登录。</li>
+            <li><b>安全规则</b>：验证码 20 分钟内有效；连续输错 3 次锁定 1 小时，期间不可输码、不可再申请。</li>
+            <li><b>作者设置</b>：发信邮箱在解锁页「作者设置」中配置（Gmail + 应用专用密码），只保存在本机，不随软件代码分发。</li>
+          </ul>
+        </div>
+        <div style="background: var(--accent-light); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-weight: 700; color: var(--accent); font-size: 14.5px;">v2.4.0</div>
             <div style="color: var(--text-muted); font-size: 12px;">2026-10-23</div>
           </div>
           <ul style="padding-left: 18px; display: flex; flex-direction: column; gap: 6px; margin: 0;">
