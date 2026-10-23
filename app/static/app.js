@@ -3850,7 +3850,7 @@ async function openSettingsModal() {
 
     const c = settings.cron || {};
     if (document.getElementById("set-system-title")) {
-      document.getElementById("set-system-title").value = settings.systemTitle || "天翼云 / 移动云 保活控制台";
+      document.getElementById("set-system-title").value = settings.systemTitle || "Cloudtop Dashboard";
     }
     if (document.getElementById("set-system-subtitle")) {
       document.getElementById("set-system-subtitle").value = settings.systemSubtitle || "多账号保活 · 每日签到 · 智能挂机";
@@ -3896,7 +3896,7 @@ async function saveSettings() {
   const customTitle = document.getElementById("set-system-title") ? document.getElementById("set-system-title").value.trim() : "";
   const customSubtitle = document.getElementById("set-system-subtitle") ? document.getElementById("set-system-subtitle").value.trim() : "";
   const payload = {
-    systemTitle: customTitle || "天翼云 / 移动云 保活控制台",
+    systemTitle: customTitle || "Cloudtop Dashboard",
     systemSubtitle: customSubtitle || "多账号保活 · 每日签到 · 智能挂机",
     keepAliveSeconds: 60,
     pulseIntervalSeconds: 30,

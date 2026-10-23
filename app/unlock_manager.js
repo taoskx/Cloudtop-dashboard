@@ -116,9 +116,9 @@ class UnlockManager {
     try {
       await this.sendMail(cfg, {
         to: cfg.notifyTo,
-        subject: '【云电脑保活控制台】解锁验证码申请',
+        subject: '【Cloudtop Dashboard】解锁验证码申请',
         text: [
-          '有人申请解锁「云电脑保活控制台」，请核对身份后把验证码转交给他/她：',
+          '有人申请解锁「Cloudtop Dashboard」，请核对身份后把验证码转交给他/她：',
           '',
           `申请邮箱：${email}`,
           `验证码：${code}`,

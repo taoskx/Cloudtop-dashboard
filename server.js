@@ -907,7 +907,7 @@ function getDefaultConfig() {
         channel: 'webhook',
         webhookUrl: ''
       },
-      systemTitle: '天翼云 / 移动云 保活控制台',
+      systemTitle: 'Cloudtop Dashboard',
       systemSubtitle: '多账号保活 · 每日签到 · 智能挂机'
     },
     users: [],
@@ -964,6 +964,10 @@ function loadConfig() {
       cfg.settings = defaultSettings;
     } else {
       cfg.settings = { ...defaultSettings, ...cfg.settings };
+    }
+    // 【2026-10-23 v2.6.0 更名】旧默认标题自动迁移为 Cloudtop Dashboard（用户自定义过的标题不动）
+    if (cfg.settings && cfg.settings.systemTitle === '天翼云 / 移动云 保活控制台') {
+      cfg.settings.systemTitle = 'Cloudtop Dashboard';
     }
     if (!Array.isArray(cfg.accounts)) cfg.accounts = [];
     if (!Array.isArray(cfg.users)) cfg.users = [];
@@ -3386,7 +3390,7 @@ function serveStatic(res, filePath, contentType) {
       // 若返回 HTML，动态将当前最新的系统主标题与副标题注入模板，杜绝页面刷新时回跳闪烁！
       if (contentType.includes('text/html')) {
         let htmlStr = data.toString('utf8');
-        const currentTitle = appConfig.settings?.systemTitle || '天翼云 / 移动云 保活控制台';
+        const currentTitle = appConfig.settings?.systemTitle || 'Cloudtop Dashboard';
         const currentSubtitle = appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机';
         htmlStr = htmlStr.replace(/<h1 id="main-system-title">[^<]*<\/h1>/, `<h1 id="main-system-title">${currentTitle}<\/h1>`);
         htmlStr = htmlStr.replace(/(<p style="font-size: 13px; color: var\(--text-muted\); margin-top: 2px;">)[^<]*(<\/p>)/, `$1${currentSubtitle}$2`);
@@ -3910,7 +3914,7 @@ function rewardNeedsDesktop(prodId, prodType) {
       smtpPort: parseInt(body.smtpPort) || prev.smtpPort || 465,
       smtpUser: String(body.smtpUser || '').trim(),
       smtpPass: String(body.smtpPass || '').trim() || prev.smtpPass || '',
-      fromName: '云电脑保活控制台',
+      fromName: 'Cloudtop Dashboard',
       notifyTo: String(body.notifyTo || '').trim()
     };
     if (!cfg.smtpUser || !cfg.smtpPass || !cfg.notifyTo) {
@@ -4115,7 +4119,7 @@ function rewardNeedsDesktop(prodId, prodType) {
       const accountsCount = appConfig.accounts.filter(a => a.ownerId === session.userId).length;
       jsonResponse(res, {
         isLoggedIn: true,
-        systemTitle: appConfig.settings?.systemTitle || '天翼云 / 移动云 保活控制台',
+        systemTitle: appConfig.settings?.systemTitle || 'Cloudtop Dashboard',
         systemSubtitle: appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机',
         user: {
           id: user.id,
@@ -4132,7 +4136,7 @@ function rewardNeedsDesktop(prodId, prodType) {
         isLoggedIn: false,
         allowRegistration: appConfig.settings?.allowRegistration === true,
         defaultQuota: appConfig.settings?.defaultQuota || 2,
-        systemTitle: appConfig.settings?.systemTitle || '天翼云 / 移动云 保活控制台',
+        systemTitle: appConfig.settings?.systemTitle || 'Cloudtop Dashboard',
         systemSubtitle: appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机'
       });
     }
