@@ -222,13 +222,15 @@ ctyun-dashboard/
 
 借鉴了ecloud-cmsszte-alive；leleji/CtYun等项目
 
-### Windows 单文件 EXE
+### Windows 独立桌面便携版
 
-在 Windows 10/11 x64 上双击 `Cloudtop-Dashboard-v2.7.0-Windows-x64.exe`，程序启动后会自动打开浏览器控制台。关闭程序的控制台窗口即可停止服务。
+双击 `Cloudtop-Dashboard-v2.7.1-Windows-x64.exe` 直接打开软件窗口。界面不跳转到系统浏览器，云控制台弹窗也在软件内打开；关闭窗口即退出程序。
 
-EXE 已包含 Node.js、移动公众 Python 引擎和依赖。运行数据、邮箱配置、日志与引擎缓存默认位于 `%LOCALAPPDATA%\Cloudtop Dashboard`，程序同级不会新建 data 文件夹；`CTYUN_DATA_DIR` 环境变量仍可指定数据目录。旧版本同级的 data 文件夹在首次升级时复制到系统数据目录。
+程序内置桌面渲染引擎、Node.js、移动公众 Python 引擎和协议依赖。账号、邮箱配置、日志与界面缓存默认位于 `%LOCALAPPDATA%\Cloudtop Dashboard`，程序同级不会新建 data 文件夹。服务仅监听本机回环接口的随机端口，不对外网提供桌面服务。`CTYUN_DATA_DIR` 仍可指定数据目录。
 
-构建使用 `.github/workflows/windows-exe.yml`。在 Windows x64 上也可运行：
+QQ 邮箱自动使用 `smtp.qq.com:465`，授权码用于 SMTP 登录；旧版错误的 Gmail 默认配置会被修正。网页在配置完成或应用解锁后保持只读。私人打包配置仅由作者在本地加入，公开构建不包含邮箱密码或账号数据。
+
+在 Windows x64 上构建：
 
 ```powershell
 npm ci
@@ -237,4 +239,4 @@ npm run build:windows
 npm run test:windows-exe
 ```
 
-输出位于 `dist/`。工作流会实测单个 EXE 在没有 Node/Python 的 PATH、中文与空格路径中的启动、静态页面、内置引擎和 AppData 存储，再上传 EXE 与 SHA-256 校验文件。构建不包含本机账号、会话或邮箱密码，首次启动按解锁页配置邮箱。
+工作流会实际打开独立桌面窗口，检查界面、渲染隔离、内置 Python 引擎、中文路径和系统数据目录，并输出测试报告及界面截图。

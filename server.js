@@ -23,6 +23,7 @@ const { EcloudClient, LOG_SOURCE: ECLOUD_LOG_SOURCE, INTERACTIVE_BRANCHES } = re
 const { LogPersister } = require('./app/persist_log');
 const { UnlockManager } = require('./app/unlock_manager');
 const { sendMail } = require('./app/smtp_mailer');
+const { normalizeMailConfig, smtpHostFor } = require('./app/mail_config');
 const { defaultDataDir, migrateLegacyDataDir } = require('./app/data_dir');
 
 // 全局异常拦截看门狗 (确保守护服务长期稳定运行不宕机)
@@ -1101,8 +1102,8 @@ const MAIL_CONFIG_FILE = path.join(DATA_DIR, 'mail-config.json');
 // 不进代码仓库），这样单个 exe 到任何电脑都能直接发码；本机「作者设置」保存的配置优先于它。
 const BAKED_MAIL_CONFIG_FILE = path.join(__dirname, 'baked-mail-config.json');
 function loadMailConfig() {
-  try { return JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8')); } catch (e) { /* 落到烘焙配置 */ }
-  try { return JSON.parse(fs.readFileSync(BAKED_MAIL_CONFIG_FILE, 'utf8')); } catch (e) { return null; }
+  try { return normalizeMailConfig(JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8'))); } catch (e) { /* 落到烘焙配置 */ }
+  try { return normalizeMailConfig(JSON.parse(fs.readFileSync(BAKED_MAIL_CONFIG_FILE, 'utf8'))); } catch (e) { return null; }
 }
 function saveMailConfig(cfg) {
   atomicWriteFileSync(MAIL_CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8', 0o600);
@@ -3918,7 +3919,7 @@ function rewardNeedsDesktop(prodId, prodType) {
     }
     const body = await parseJsonBody(req);
     const cfg = {
-      smtpHost: String(body.smtpHost || prev.smtpHost || 'smtp.gmail.com').trim(),
+      smtpHost: String(body.smtpHost || smtpHostFor(body.smtpUser)).trim(),
       smtpPort: parseInt(body.smtpPort) || prev.smtpPort || 465,
       smtpUser: String(body.smtpUser || '').trim(),
       smtpPass: String(body.smtpPass || '').trim() || prev.smtpPass || '',
@@ -6647,8 +6648,8 @@ function rewardNeedsDesktop(prodId, prodType) {
   jsonResponse(res, { error: 'Not Found' }, 404);
 });
 
-function startServer() {
-  server.listen(PORT, '0.0.0.0', () => {
+function startServer(options = {}) {
+  server.listen(options.port ?? PORT, options.host || '0.0.0.0', () => {
     setTimeout(initAllKeepAlive, 2000);
     setTimeout(() => taskScheduler.start(), 3000);
     const isDockerEnv = fs.existsSync('/.dockerenv') || process.env.CTYUN_DATA_DIR === '/app/data';

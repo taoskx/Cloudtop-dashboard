@@ -1,0 +1,31 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { smtpHostFor, normalizeMailConfig, applyBundledMailConfig } = require('../app/mail_config');
+assert.equal(smtpHostFor('owner@qq.com'), 'smtp.qq.com');
+assert.equal(smtpHostFor('owner@foxmail.com'), 'smtp.qq.com');
+assert.equal(normalizeMailConfig({smtpUser:'owner@qq.com',smtpHost:'smtp.gmail.com'}).smtpHost, 'smtp.qq.com');
+assert.equal(normalizeMailConfig({smtpUser:'owner@qq.com',smtpHost:'custom.example.test'}).smtpHost, 'custom.example.test');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'cloudtop-mail-profile-'));
+try {
+  const profile=path.join(root,'profile.json');
+  const data=path.join(root,'AppData');
+  fs.mkdirSync(data);
+  fs.writeFileSync(path.join(data,'mail-config.json'),JSON.stringify({smtpUser:'old@example.test',smtpPass:'old',notifyTo:'old@example.test'}));
+  const config={revision:'test-1',smtpUser:'owner@qq.com',smtpPass:'test-only-code',notifyTo:'owner@qq.com'};
+  fs.writeFileSync(profile,JSON.stringify(config));
+  assert.equal(applyBundledMailConfig(profile,data),true);
+  const loaded=JSON.parse(fs.readFileSync(path.join(data,'mail-config.json')));
+  assert.equal(loaded.smtpHost,'smtp.qq.com');
+  assert.equal(loaded.bundleRevision,'test-1');
+  assert.equal(loaded.smtpUser,'owner@qq.com');
+  assert.equal(applyBundledMailConfig(profile,data),false,'Do not overwrite the same profile on every launch');
+  config.revision='test-2'; config.smtpPass='changed-test-code';
+  fs.writeFileSync(profile,JSON.stringify(config));
+  assert.equal(applyBundledMailConfig(profile,data),true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(data,'mail-config.json'))).smtpPass,'changed-test-code');
+  assert.equal(applyBundledMailConfig(path.join(root,'absent.json'),data),false);
+  console.log('邮箱服务识别、旧配置修正和私人配置升级测试通过');
+} finally {fs.rmSync(root,{recursive:true,force:true});}

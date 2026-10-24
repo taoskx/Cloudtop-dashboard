@@ -49,3 +49,4 @@ tools/_*
 /dist/
 *.spec
 /baked-mail-config.json
+/private-mail-config.json
