@@ -14,6 +14,10 @@ const ROOT = path.resolve(__dirname, '..');
 
 const FILES = [
   'server.js',
+  'desktop.js',
+  'app/desktop_runtime.js',
+  'scripts/build-windows.js',
+  'scripts/windows-smoke.js',
   'app/data_dir.js',
   'app/persist_log.js',
   'app/tasks/native_tasks.js',

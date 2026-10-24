@@ -6,12 +6,34 @@
   "scripts": {
     "start": "node server.js",
     "check": "node tests/syntax_check.js",
-    "test": "node tests/syntax_check.js && node tests/data_dir.test.js && node tests/regression.test.js",
+    "test": "node tests/syntax_check.js && node tests/data_dir.test.js && node tests/desktop_runtime.test.js && node tests/regression.test.js",
     "test:mutation": "node tests/mutation_check.js",
     "smoke": "node analysis/smoke_check.js",
-    "verify": "node tests/syntax_check.js && node tests/regression.test.js && node tests/mutation_check.js && node analysis/smoke_check.js"
+    "verify": "node tests/syntax_check.js && node tests/regression.test.js && node tests/mutation_check.js && node analysis/smoke_check.js",
+    "build:windows": "node scripts/build-windows.js",
+    "test:windows-exe": "node scripts/windows-smoke.js"
   },
   "dependencies": {
     "ws": "^8.21.3"
+  },
+  "pkg": {
+    "scripts": [
+      "server.js",
+      "app/**/*.js"
+    ],
+    "assets": [
+      "app/static/**/*",
+      "app/ecloud_engine/*.py",
+      "app/ecloud_engine/public_credentials.json",
+      "build/sidecar/cloudtop-sidecar.exe"
+    ],
+    "targets": [
+      "node22-win-x64"
+    ]
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "@yao-pkg/pkg": "6.24.0",
+    "resedit": "3.1.0"
   }
 }

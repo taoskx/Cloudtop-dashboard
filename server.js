@@ -65,7 +65,7 @@ const DEVICES_DIR = path.join(DATA_DIR, 'devices');
 // 旧版在程序同级写 data/；首次启动新版本时复制旧数据，避免升级丢账号。
 // CTYUN_DATA_DIR 显式指定的目录（包括 Docker 卷）保持原有语义。
 if (!process.env.CTYUN_DATA_DIR) {
-  migrateLegacyDataDir(DATA_DIR, path.join(__dirname, 'data'));
+  migrateLegacyDataDir(DATA_DIR, path.join(process.pkg ? path.dirname(process.execPath) : __dirname, 'data'));
 }
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DEVICES_DIR)) fs.mkdirSync(DEVICES_DIR, { recursive: true });
@@ -3337,10 +3337,6 @@ function initAllKeepAlive() {
   }
 }
 
-if (require.main === module) {
-  setTimeout(initAllKeepAlive, 2000);
-}
-
 // 初始化定时任务调度中心
 const taskScheduler = new TaskScheduler({
   getAccounts: () => appConfig.accounts,
@@ -3372,10 +3368,6 @@ const taskScheduler = new TaskScheduler({
   },
   saveConfig: () => saveConfig(appConfig)
 });
-if (require.main === module) {
-  setTimeout(() => taskScheduler.start(), 3000);
-}
-
 // ==========================================================
 // HTTP 路由与 API 服务
 // ==========================================================
@@ -6655,8 +6647,10 @@ function rewardNeedsDesktop(prodId, prodType) {
   jsonResponse(res, { error: 'Not Found' }, 404);
 });
 
-if (require.main === module) {
+function startServer() {
   server.listen(PORT, '0.0.0.0', () => {
+    setTimeout(initAllKeepAlive, 2000);
+    setTimeout(() => taskScheduler.start(), 3000);
     const isDockerEnv = fs.existsSync('/.dockerenv') || process.env.CTYUN_DATA_DIR === '/app/data';
     console.log(`===========================================================`);
     console.log(`🚀 天翼云/移动云电脑全功能可视化管理平台已完全就绪！`);
@@ -6677,9 +6671,13 @@ if (require.main === module) {
     if (restoredLogs > 0) console.log(`📜 已从磁盘回灌 ${restoredLogs} 条历史日志 (${LOG_DIR})`);
     appendLog('System', `控制台服务已就绪，当前加载 ${appConfig.accounts.length} 个账号（回灌历史日志 ${restoredLogs} 条）`, 'success');
   });
+  return server;
 }
 
+if (require.main === module) startServer();
+
 module.exports = {
+  startServer,
   CtYunClient,
   appConfig,
   server,

@@ -221,3 +221,20 @@ ctyun-dashboard/
 *本项目仅供自动化运维、技术研究与学习交流使用，请遵守天翼云、中国移动云电脑平台相关使用规范与协议。*
 
 借鉴了ecloud-cmsszte-alive；leleji/CtYun等项目
+
+### Windows 单文件 EXE
+
+在 Windows 10/11 x64 上双击 `Cloudtop-Dashboard-v2.7.0-Windows-x64.exe`，程序启动后会自动打开浏览器控制台。关闭程序的控制台窗口即可停止服务。
+
+EXE 已包含 Node.js、移动公众 Python 引擎和依赖。运行数据、邮箱配置、日志与引擎缓存默认位于 `%LOCALAPPDATA%\Cloudtop Dashboard`，程序同级不会新建 data 文件夹；`CTYUN_DATA_DIR` 环境变量仍可指定数据目录。旧版本同级的 data 文件夹在首次升级时复制到系统数据目录。
+
+构建使用 `.github/workflows/windows-exe.yml`。在 Windows x64 上也可运行：
+
+```powershell
+npm ci
+python -m pip install -r app/ecloud_engine/requirements.txt pyinstaller==6.22.3
+npm run build:windows
+npm run test:windows-exe
+```
+
+输出位于 `dist/`。工作流会实测单个 EXE 在没有 Node/Python 的 PATH、中文与空格路径中的启动、静态页面、内置引擎和 AppData 存储，再上传 EXE 与 SHA-256 校验文件。构建不包含本机账号、会话或邮箱密码，首次启动按解锁页配置邮箱。

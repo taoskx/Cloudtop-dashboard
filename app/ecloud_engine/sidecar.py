@@ -48,6 +48,11 @@ import traceback
 import uuid
 from pathlib import Path
 
+# Frozen Windows applications inherit a locale encoding; IPC is always UTF-8.
+for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
