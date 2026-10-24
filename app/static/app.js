@@ -1716,18 +1716,20 @@ function updateAccountsInPlace(filteredAccounts) {
 // ============================================================
 let deckFocusIdx = 0;
 let deckEventsBound = false;
+let deckPeekIdx = -1;
 
-function deckTransformFor(d, peek) {
+function deckTransformFor(d, mode = 'normal') {
   const ad = Math.abs(d);
-  let x = 0, sc = 1;
+  let x = 0, sc = 1, y = 0, tilt = 0;
   if (d !== 0) {
     const dir = d > 0 ? 1 : -1;
-    if (ad === 1) { x = dir * 34; sc = 0.93; }
-    else if (ad === 2) { x = dir * 68; sc = 0.87; }
-    else { x = dir * 100; sc = 0.82; }
-    if (peek) { x -= dir * 7; sc += 0.02; }
+    if (ad === 1) { x = dir * 35; sc = 0.9; tilt = dir * 5; }
+    else if (ad === 2) { x = dir * 69; sc = 0.82; tilt = dir * 9; }
+    else { x = dir * 102; sc = 0.76; tilt = dir * 11; }
+    if (mode === 'peek') { x -= dir * 8; sc += 0.055; y = -13; tilt *= 0.35; }
+    if (mode === 'retreat') x += dir * 8;
   }
-  return `translate(-50%, 0) translateX(${x}%) scale(${sc})`;
+  return `translate(-50%, 0) translateX(${x}%) translateY(${y}px) rotate(${tilt}deg) scale(${sc})`;
 }
 
 function setDeckNavVisible(v) {
@@ -1764,10 +1766,12 @@ function layoutDeck() {
   cards.forEach((card, i) => {
     const d = i - focus;
     const ad = Math.abs(d);
+    const peekD = deckPeekIdx - focus;
+    const mode = deckPeekIdx === i ? 'peek' : deckPeekIdx >= 0 && d !== 0 && Math.sign(d) === Math.sign(peekD) && ad > Math.abs(peekD) ? 'retreat' : 'normal';
     card.dataset.deckD = d;
-    card.style.transform = deckTransformFor(d, false);
-    card.style.opacity = d === 0 ? '1' : ad === 1 ? '0.96' : ad === 2 ? '0.7' : '0';
-    card.style.zIndex = String(40 - ad * 10);
+    card.style.transform = deckTransformFor(d, mode);
+    card.style.opacity = d === 0 ? '1' : ad === 1 ? '1' : ad === 2 ? '0.94' : '0';
+    card.style.zIndex = String(mode === 'peek' ? 45 : 40 - ad * 10);
     card.style.pointerEvents = ad >= 3 ? 'none' : 'auto';
     card.classList.toggle('deck-front', d === 0);
     card.classList.toggle('deck-side', d !== 0);
@@ -1782,6 +1786,7 @@ function deckFocusTo(idx) {
   const cards = container.querySelectorAll(':scope > .account-card');
   if (!cards.length) return;
   deckFocusIdx = Math.max(0, Math.min(idx, cards.length - 1));
+  deckPeekIdx = -1;
   const id = cards[deckFocusIdx].dataset.accId;
   try { localStorage.setItem('cloudtop-deck-focus', id); } catch (e) { /* 忽略 */ }
   layoutDeck();
@@ -1805,19 +1810,30 @@ function initDeckEvents() {
   // 悬停侧卡：向中心轻探预览；移开恢复
   container.addEventListener('mouseover', (e) => {
     const card = e.target.closest('.account-card');
-    if (!card || card.classList.contains('deck-front') || card.__peeked) return;
-    card.__peeked = true;
-    const d = parseInt(card.dataset.deckD || '0', 10);
-    if (d !== 0) {
-      card.style.transform = deckTransformFor(d, true);
-      card.style.zIndex = '35';
-    }
+    if (!card || card.classList.contains('deck-front')) return;
+    const cards = Array.from(container.querySelectorAll(':scope > .account-card'));
+    const idx = cards.indexOf(card);
+    if (idx === deckPeekIdx) return;
+    deckPeekIdx = idx;
+    layoutDeck();
   });
   container.addEventListener('mouseout', (e) => {
     const card = e.target.closest('.account-card');
     if (!card || (e.relatedTarget && card.contains(e.relatedTarget))) return;
-    if (card.__peeked) { card.__peeked = false; layoutDeck(); }
+    if (deckPeekIdx >= 0) { deckPeekIdx = -1; layoutDeck(); }
   });
+
+  let touchStart = null;
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  container.addEventListener('touchend', (e) => {
+    if (!touchStart || !container.classList.contains('deck') || !e.changedTouches.length) return;
+    const dx = e.changedTouches[0].clientX - touchStart.x;
+    const dy = e.changedTouches[0].clientY - touchStart.y;
+    touchStart = null;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) deckFocusTo(deckFocusIdx + (dx < 0 ? 1 : -1));
+  }, { passive: true });
 
   // 滚轮（在侧卡/背景上）切换聚焦；前卡内部照常滚动
   let lastWheel = 0;
@@ -1903,11 +1919,10 @@ function renderAccounts(isSilent = false) {
     const tabNameMap = { ydpc: '移动爱家', ctyun: '天翼云电脑', ecloud: '移动公众' };
     const tabName = tabNameMap[activeAccountViewTab] || '云电脑';
     container.innerHTML = `
-      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted); background: var(--bg-secondary); border-radius: var(--radius); border: 1px dashed var(--border);">
-        <p style="font-size: 15px; margin-bottom: 12px;">当前暂未配置【${tabName}】设备</p>
-        <button class="btn btn-primary" onclick="openAddAccountModal()">➕ 立即添加云电脑</button>
-      </div>
-    `;
+      <div class="deck-empty">
+        <div class="deck-empty-orb" aria-hidden="true"><span class="deck-empty-orb-ring"></span><span class="deck-empty-orb-core"></span><span class="deck-empty-orb-star">✦</span></div>
+        <div class="deck-empty-copy"><span class="deck-empty-eyebrow">YOUR CLOUD SPACE</span><h2>让云端，随时在线。</h2><p>当前还没有${tabName}设备。添加第一台云电脑，保活、签到与状态即可在这里一览无余。</p><button class="btn btn-primary" onclick="openAddAccountModal()">添加云电脑 <span aria-hidden="true">↗</span></button></div>
+      </div>`;
     return;
   }
 
@@ -1940,6 +1955,16 @@ function renderAccounts(isSilent = false) {
     const acc = filteredAccounts.find(a => a.id === accId);
     if (!acc) return;
     const card = buildAccountCardElement(acc, idx);
+    const platform = String(acc.platform || 'ctyun').toLowerCase();
+    card.dataset.platform = platform;
+    const cover = document.createElement('div');
+    cover.className = 'deck-cover';
+    cover.setAttribute('aria-hidden', 'true');
+    const platformName = { ctyun: '天翼云', ydpc: '移动爱家', ecloud: '移动公众' }[platform] || '云电脑';
+    cover.innerHTML = '<span class="deck-cover-kicker">CLOUDTOP / DEVICE</span><span class="deck-cover-title"></span><span class="deck-cover-platform"></span><span class="deck-cover-art"><span class="deck-cover-orb"></span><span class="deck-cover-ring"></span><span class="deck-cover-spark">✦</span></span><span class="deck-cover-hint">轻触查看 <span aria-hidden="true">↗</span></span>';
+    cover.querySelector('.deck-cover-title').textContent = acc.remark || acc.name || platformName;
+    cover.querySelector('.deck-cover-platform').textContent = platformName;
+    card.appendChild(cover);
     card.draggable = false; // deck 模式不使用 HTML5 拖拽排序（点击聚焦切换）
     fragment.appendChild(card);
   });
