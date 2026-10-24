@@ -31,10 +31,10 @@ async function main() {
 
   run(process.env.ECLOUD_PYTHON || 'python', [
     '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile', '--console', '--noupx',
-    '--name', 'cloudtop-sidecar', '--distpath', 'build/sidecar', '--workpath', 'build/pyinstaller', '--specpath', 'build',
-    '--paths', 'app/ecloud_engine', '--collect-all', 'Crypto',
+    '--name', 'cloudtop-sidecar', '--distpath', path.join(ROOT, 'build/sidecar'), '--workpath', path.join(ROOT, 'build/pyinstaller'), '--specpath', path.join(ROOT, 'build'),
+    '--paths', path.join(ROOT, 'app/ecloud_engine'), '--collect-all', 'Crypto',
     '--add-data', `${path.join(ROOT, 'app/ecloud_engine/public_credentials.json')}${path.delimiter}.`,
-    '--icon', 'build/cloudtop.ico', 'app/ecloud_engine/sidecar.py',
+    '--icon', path.join(ROOT, 'build/cloudtop.ico'), path.join(ROOT, 'app/ecloud_engine/sidecar.py'),
   ]);
   const { exec } = require('@yao-pkg/pkg');
   const output = path.join(ROOT, 'dist', `Cloudtop-Dashboard-v${version}-Windows-x64.exe`);
