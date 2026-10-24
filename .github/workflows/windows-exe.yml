@@ -25,19 +25,31 @@ jobs:
         run: |
           npm ci
           python -m pip install -r app/ecloud_engine/requirements.txt pyinstaller==6.22.3
-      - name: Check JavaScript and data storage
+      - name: Check JavaScript, storage and SMTP behavior
         run: |
           npm run check
           node tests/data_dir.test.js
           node tests/desktop_runtime.test.js
-      - name: Build standalone Windows x64 executable
+          node tests/mail_config.test.js
+          node tests/smtp_mailer.test.js
+      - name: Build native portable Windows application
         run: npm run build:windows
-      - name: Test the packaged EXE without Node or Python on PATH
+      - name: Test native window and embedded protocol engine
         run: node scripts/windows-smoke.js
-      - name: Upload tested EXE and checksum
+      - name: Upload tested public desktop package
         uses: actions/upload-artifact@v4
         with:
           name: Cloudtop-Dashboard-Windows-x64
-          path: dist/*
+          path: |
+            dist/*.exe
+            dist/*.sha256
+            dist/*.png
           if-no-files-found: error
           retention-days: 30
+      - name: Upload public staging archive for private local packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cloudtop-Desktop-Staging
+          path: dist/Cloudtop-desktop-staging.zip
+          if-no-files-found: error
+          retention-days: 7
