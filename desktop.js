@@ -53,8 +53,6 @@ async function main() {
   process.env.ECLOUD_SESSION_FILE ||= path.join(dataDir, 'ecloud', 'sessions.json');
   process.env.ECLOUD_LOGIN_RATE_LIMIT_FILE ||= path.join(dataDir, 'ecloud', 'login_rate_limit.json');
   process.env.PYTHONIOENCODING = 'utf-8';
-  session.defaultSession.setPermissionRequestHandler((_, __, callback) => callback(false));
-
   backend = require('./server');
   const server = backend.startServer({ host: '127.0.0.1', port: 0 });
   await new Promise((resolve, reject) => {
@@ -62,6 +60,9 @@ async function main() {
     server.once('error', reject);
   });
   const origin = `http://127.0.0.1:${server.address().port}`;
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
+    callback(contents.getURL().startsWith(origin + '/') && permission === 'clipboard-sanitized-write');
+  });
   const preferences = { nodeIntegration: false, contextIsolation: true, sandbox: true, devTools: !app.isPackaged };
   mainWindow = new BrowserWindow({
     width: 1420, height: 940, minWidth: 880, minHeight: 640,
