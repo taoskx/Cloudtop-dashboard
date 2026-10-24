@@ -975,6 +975,9 @@ function loadConfig() {
     if (cfg.settings && cfg.settings.systemTitle === '天翼云 / 移动云 保活控制台') {
       cfg.settings.systemTitle = 'Cloudtop Dashboard';
     }
+    if (cfg.settings && cfg.settings.systemSubtitle === '多账号保活 · 每日签到 · 智能挂机') {
+      cfg.settings.systemSubtitle = '云电脑保活与签到管理';
+    }
     if (!Array.isArray(cfg.accounts)) cfg.accounts = [];
     if (!Array.isArray(cfg.users)) cfg.users = [];
 
