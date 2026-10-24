@@ -14,6 +14,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 const FILES = [
   'server.js',
+  'app/data_dir.js',
   'app/persist_log.js',
   'app/tasks/native_tasks.js',
   'app/tasks/scheduler.js',

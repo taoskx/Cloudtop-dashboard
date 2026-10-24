@@ -4006,7 +4006,7 @@ async function openSettingsModal() {
       document.getElementById("set-system-title").value = settings.systemTitle || "Cloudtop Dashboard";
     }
     if (document.getElementById("set-system-subtitle")) {
-      document.getElementById("set-system-subtitle").value = settings.systemSubtitle || "多账号保活 · 每日签到 · 智能挂机";
+      document.getElementById("set-system-subtitle").value = settings.systemSubtitle || "云电脑保活与签到管理";
     }
     if (document.getElementById("cron-task-time")) {
       document.getElementById("cron-task-time").value = c.executeTime || "01:20";
@@ -4050,7 +4050,7 @@ async function saveSettings() {
   const customSubtitle = document.getElementById("set-system-subtitle") ? document.getElementById("set-system-subtitle").value.trim() : "";
   const payload = {
     systemTitle: customTitle || "Cloudtop Dashboard",
-    systemSubtitle: customSubtitle || "多账号保活 · 每日签到 · 智能挂机",
+    systemSubtitle: customSubtitle || "云电脑保活与签到管理",
     keepAliveSeconds: 60,
     pulseIntervalSeconds: 30,
     allowRegistration: document.getElementById("set-allow-reg") ? document.getElementById("set-allow-reg").checked : false,
@@ -5095,7 +5095,13 @@ async function loadMailConfigForm() {
     const res = await fetch("/api/unlock/mail-config");
     const cfg = await res.json();
     document.getElementById("mc-smtp-user").value = cfg.smtpUser || "";
-    document.getElementById("mc-notify-to").value = cfg.notifyTo || "b.iz@qq.com";
+    document.getElementById("mc-notify-to").value = cfg.notifyTo || "";
+    const form = document.getElementById("mail-config-form");
+    if (form) {
+      form.querySelectorAll("input, button").forEach(el => { el.disabled = cfg.editable === false; });
+      const notice = document.getElementById("mail-config-locked-notice");
+      if (notice) notice.classList.toggle("hidden", cfg.editable !== false);
+    }
   } catch (e) {}
 }
 
@@ -5108,7 +5114,10 @@ async function saveMailConfig() {
   try {
     const res = await fetch("/api/unlock/mail-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
-    if (data.success) setUnlockMsg("发信配置已保存，现在可以申请验证码了", "ok");
+    if (data.success) {
+      setUnlockMsg("发信配置已保存，现在可以申请验证码了", "ok");
+      loadMailConfigForm();
+    }
     else setUnlockMsg(data.error || "保存失败", "error");
   } catch (e) { setUnlockMsg("网络异常，保存失败", "error"); }
 }
