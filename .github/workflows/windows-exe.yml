@@ -1,0 +1,43 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main, codex/lock-mail-config-and-refine-ui]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: |
+          npm ci
+          python -m pip install -r app/ecloud_engine/requirements.txt pyinstaller==6.22.3
+      - name: Check JavaScript and data storage
+        run: |
+          npm run check
+          node tests/data_dir.test.js
+          node tests/desktop_runtime.test.js
+      - name: Build standalone Windows x64 executable
+        run: npm run build:windows
+      - name: Test the packaged EXE without Node or Python on PATH
+        run: node scripts/windows-smoke.js
+      - name: Upload tested EXE and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cloudtop-Dashboard-Windows-x64
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
