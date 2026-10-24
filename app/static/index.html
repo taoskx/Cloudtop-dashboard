@@ -20,6 +20,37 @@
           <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">云电脑保活与签到管理</p>
         </div>
       </div>
+    <!-- 统计卡片 (未登录时不渲染显示) -->
+    <div class="stats-grid hidden" id="main-stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M16 5.4a3.2 3.2 0 0 1 0 5.9"/><path d="M17.5 14.9c1.7.6 2.7 1.9 3 4.1"/></svg></div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-label">账号总数</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.2-6 4 12 2.3-6H21"/></svg></div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-online">0</div>
+          <div class="stat-label">保活在线</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.5"/><path d="M4 10.2h16"/><path d="M8.5 3.5v4M15.5 3.5v4"/><path d="m9.2 15.6 1.9 1.9 3.7-3.9"/></svg></div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-signed">0</div>
+          <div class="stat-label">今日签到</div>
+        </div>
+      </div>
+      <div class="stat-card" style="cursor: pointer;" onclick="openPointsDetailModal()" title="查看积分明细">
+        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="1.5"/><path d="M12 11v9M4 15.5h16"/><path d="M12 11a2.6 2.6 0 1 1 2.6-2.6C14.6 10.1 12 11 12 11zm0 0a2.6 2.6 0 1 0-2.6-2.6C9.4 10.1 12 11 12 11z"/></svg></div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-points" style="color: var(--accent-2);">0</div>
+          <div class="stat-label">今日积分</div>
+        </div>
+      </div>
+    </div>
       <div class="header-actions">
         <!-- 未登录时仅显示登录/注册按钮 -->
         <button class="btn btn-primary" id="btn-auth-action" onclick="openAuthModal()">登录</button>
@@ -56,37 +87,6 @@
       </div>
       </div>
 
-    <!-- 统计卡片 (未登录时不渲染显示) -->
-    <div class="stats-grid hidden" id="main-stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M16 5.4a3.2 3.2 0 0 1 0 5.9"/><path d="M17.5 14.9c1.7.6 2.7 1.9 3 4.1"/></svg></div>
-        <div class="stat-info">
-          <div class="stat-value" id="stat-total">0</div>
-          <div class="stat-label">账号总数</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.2-6 4 12 2.3-6H21"/></svg></div>
-        <div class="stat-info">
-          <div class="stat-value" id="stat-online">0</div>
-          <div class="stat-label">保活在线</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.5"/><path d="M4 10.2h16"/><path d="M8.5 3.5v4M15.5 3.5v4"/><path d="m9.2 15.6 1.9 1.9 3.7-3.9"/></svg></div>
-        <div class="stat-info">
-          <div class="stat-value" id="stat-signed">0</div>
-          <div class="stat-label">今日签到</div>
-        </div>
-      </div>
-      <div class="stat-card" style="cursor: pointer;" onclick="openPointsDetailModal()" title="查看积分明细">
-        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="1.5"/><path d="M12 11v9M4 15.5h16"/><path d="M12 11a2.6 2.6 0 1 1 2.6-2.6C14.6 10.1 12 11 12 11zm0 0a2.6 2.6 0 1 0-2.6-2.6C9.4 10.1 12 11 12 11z"/></svg></div>
-        <div class="stat-info">
-          <div class="stat-value" id="stat-points" style="color: var(--accent-2);">0</div>
-          <div class="stat-label">今日积分</div>
-        </div>
-      </div>
-    </div>
     </header>
 
     <!-- 账号列表区域 -->
