@@ -1772,7 +1772,7 @@ function layoutDeck() {
     const cover = card.querySelector('.deck-cover');
     if (cover) {
       cover.dataset.edge = d < 0 ? 'left' : 'right';
-      const states = Array.from(card.querySelectorAll('.vm-device-header .badge'));
+      const states = Array.from(card.querySelectorAll('.vm-device-header .badge')).filter(el => ['运行中', '已关机', '状态未知'].includes(el.textContent.trim()));
       const running = states.filter(el => el.textContent.trim() === '运行中').length;
       const offline = states.filter(el => el.textContent.trim() === '已关机').length;
       const status = cover.querySelector('.deck-cover-status');
