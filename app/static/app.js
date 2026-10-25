@@ -1723,8 +1723,8 @@ function deckTransformFor(d, mode = 'normal') {
   let x = 0, sc = 1, y = 0, tilt = 0;
   if (d !== 0) {
     const dir = d > 0 ? 1 : -1;
-    if (ad === 1) { x = dir * 35; sc = 0.9; tilt = dir * 5; }
-    else if (ad === 2) { x = dir * 69; sc = 0.82; tilt = dir * 9; }
+    if (ad === 1) { x = dir * 19; sc = 0.96; y = 18; tilt = dir * 1.5; }
+    else if (ad === 2) { x = dir * 38; sc = 0.92; y = 36; tilt = dir * 3; }
     else { x = dir * 102; sc = 0.76; tilt = dir * 11; }
     if (mode === 'peek') { x -= dir * 8; sc += 0.055; y = -13; tilt *= 0.35; }
     if (mode === 'retreat') x += dir * 8;
@@ -1769,12 +1769,35 @@ function layoutDeck() {
     const peekD = deckPeekIdx - focus;
     const mode = deckPeekIdx === i ? 'peek' : deckPeekIdx >= 0 && d !== 0 && Math.sign(d) === Math.sign(peekD) && ad > Math.abs(peekD) ? 'retreat' : 'normal';
     card.dataset.deckD = d;
+    const cover = card.querySelector('.deck-cover');
+    if (cover) {
+      cover.dataset.edge = d < 0 ? 'left' : 'right';
+      const states = Array.from(card.querySelectorAll('.vm-device-header .badge'));
+      const running = states.filter(el => el.textContent.trim() === '运行中').length;
+      const offline = states.filter(el => el.textContent.trim() === '已关机').length;
+      const status = cover.querySelector('.deck-cover-status');
+      status.textContent = running ? `${running} 台在线` : offline && offline === states.length ? '已关机' : '待同步';
+      status.dataset.online = running ? 'true' : 'false';
+      cover.querySelector('.deck-cover-detail').textContent = states.length ? `共 ${states.length} 台设备` : '等待设备状态';
+    }
     card.style.transform = deckTransformFor(d, mode);
     card.style.opacity = d === 0 ? '1' : ad === 1 ? '1' : ad === 2 ? '0.94' : '0';
     card.style.zIndex = String(mode === 'peek' ? 45 : 40 - ad * 10);
     card.style.pointerEvents = ad >= 3 ? 'none' : 'auto';
     card.classList.toggle('deck-front', d === 0);
     card.classList.toggle('deck-side', d !== 0);
+  });
+  requestAnimationFrame(() => {
+    const front = container.querySelector('.deck-front');
+    const wrap = container.closest('.deck-wrap');
+    const log = document.getElementById('main-log-panel');
+    if (!front || !wrap) return;
+    const height = Math.max(740, front.offsetHeight);
+    wrap.style.height = `${height}px`;
+    if (log && window.innerWidth > 760) {
+      const header = document.getElementById('main-section-header');
+      log.style.height = `${height + (header?.offsetHeight || 0) + 14}px`;
+    } else if (log) log.style.height = '';
   });
   renderDeckDots(n, focus);
   setDeckNavVisible(n > 1);
@@ -1961,7 +1984,7 @@ function renderAccounts(isSilent = false) {
     cover.className = 'deck-cover';
     cover.setAttribute('aria-hidden', 'true');
     const platformName = { ctyun: '天翼云', ydpc: '移动爱家', ecloud: '移动公众' }[platform] || '云电脑';
-    cover.innerHTML = '<span class="deck-cover-kicker">CLOUDTOP / DEVICE</span><span class="deck-cover-title"></span><span class="deck-cover-platform"></span><span class="deck-cover-art"><span class="deck-cover-orb"></span><span class="deck-cover-ring"></span><span class="deck-cover-spark">✦</span></span><span class="deck-cover-hint">轻触查看 <span aria-hidden="true">↗</span></span>';
+    cover.innerHTML = '<div class="deck-cover-summary"><span class="deck-cover-platform"></span><span class="deck-cover-title"></span><span class="deck-cover-status" role="status"></span><span class="deck-cover-detail"></span><span class="deck-cover-open">点击查看 ↗</span></div>';
     cover.querySelector('.deck-cover-title').textContent = acc.remark || acc.name || platformName;
     cover.querySelector('.deck-cover-platform').textContent = platformName;
     card.appendChild(cover);

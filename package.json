@@ -1,6 +1,6 @@
 {
   "name": "cloudtop-dashboard",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "description": "天翼云电脑/移动爱家/移动公众可视化多账号保活控制中心",
   "main": "desktop.js",
   "scripts": {
