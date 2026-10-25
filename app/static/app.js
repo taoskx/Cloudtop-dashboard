@@ -1795,8 +1795,7 @@ function layoutDeck() {
     const height = Math.max(740, front.offsetHeight);
     wrap.style.height = `${height}px`;
     if (log && window.innerWidth > 760) {
-      const header = document.getElementById('main-section-header');
-      log.style.height = `${height + (header?.offsetHeight || 0) + 14}px`;
+      log.style.height = `${height + 45}px`;
     } else if (log) log.style.height = '';
   });
   renderDeckDots(n, focus);
