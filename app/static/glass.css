@@ -264,3 +264,13 @@ body { overflow-y: auto; }
 @media(max-width:1100px) { .deck .account-card { left: 44%; } }
 
 #main-section-header { align-self: start; min-height: 31px; }
+
+/* Two readable front cards, 25% narrower than the previous 640px design. */
+.deck .account-card { width: min(480px, 43%); left: 48%; padding: 16px; }
+.deck .account-card .account-phone { flex-wrap: wrap; }
+.deck .account-card .vm-device-header { flex-wrap: wrap; gap: 6px; }
+.deck .account-card .card-action-tools { flex-wrap: wrap; gap: 5px; }
+.deck .account-card .card-action-tools .btn { min-width: 0; padding: 7px 6px; font-size: 11px; }
+.deck .account-card .task-box { padding: 10px 12px; }
+@media(max-width:1100px) { .deck .account-card { width: min(480px, 78%); left: 44%; } }
+.logo-icon img { width: 44px; height: 44px; object-fit: contain; }

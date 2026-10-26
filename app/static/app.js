@@ -1763,15 +1763,19 @@ function layoutDeck() {
   } catch (e) { /* 隐私模式等场景忽略 */ }
   focus = Math.max(0, Math.min(focus, n - 1));
   deckFocusIdx = focus;
+  const paired = window.innerWidth > 1100 && n > 1;
+  const pairStart = Math.min(focus, n - 2);
   cards.forEach((card, i) => {
     const d = i - focus;
+    const slot = i - pairStart;
+    const visible = paired ? slot === 0 || slot === 1 : d === 0;
     const ad = Math.abs(d);
     const peekD = deckPeekIdx - focus;
     const mode = deckPeekIdx === i ? 'peek' : deckPeekIdx >= 0 && d !== 0 && Math.sign(d) === Math.sign(peekD) && ad > Math.abs(peekD) ? 'retreat' : 'normal';
     card.dataset.deckD = d;
     const cover = card.querySelector('.deck-cover');
     if (cover) {
-      cover.dataset.edge = d < 0 ? 'left' : 'right';
+      cover.dataset.edge = (paired ? slot < 0 : d < 0) ? 'left' : 'right';
       const states = Array.from(card.querySelectorAll('.vm-device-header .badge')).filter(el => ['运行中', '已关机', '状态未知'].includes(el.textContent.trim()));
       const running = states.filter(el => el.textContent.trim() === '运行中').length;
       const offline = states.filter(el => el.textContent.trim() === '已关机').length;
@@ -1780,19 +1784,29 @@ function layoutDeck() {
       status.dataset.online = running ? 'true' : 'false';
       cover.querySelector('.deck-cover-detail').textContent = states.length ? `共 ${states.length} 台设备` : '等待设备状态';
     }
-    card.style.transform = deckTransformFor(d, mode);
-    card.style.opacity = d === 0 ? '1' : ad === 1 ? '1' : ad === 2 ? '0.94' : '0';
-    card.style.zIndex = String(mode === 'peek' ? 45 : 40 - ad * 10);
-    card.style.pointerEvents = ad >= 3 ? 'none' : 'auto';
-    card.classList.toggle('deck-front', d === 0);
-    card.classList.toggle('deck-side', d !== 0);
+    if (paired) {
+      const distance = slot < 0 ? -slot : slot - 1;
+      const x = visible ? (slot === 0 ? -52 : 52) : (slot < 0 ? -1 : 1) * (76 + Math.max(0, distance - 1) * 19);
+      const scale = visible ? 1 : Math.max(.8, .96 - distance * .025);
+      card.style.transform = `translate(-50%, 0) translateX(${x}%) translateY(${visible ? 0 : 20 + distance * 14}px) scale(${scale})`;
+      card.style.opacity = visible || distance <= 2 ? '1' : '0';
+      card.style.zIndex = String(visible ? 40 : 30 - distance);
+      card.style.pointerEvents = visible || distance <= 2 ? 'auto' : 'none';
+    } else {
+      card.style.transform = deckTransformFor(d, mode);
+      card.style.opacity = ad <= 2 ? '1' : '0';
+      card.style.zIndex = String(mode === 'peek' ? 45 : 40 - ad * 10);
+      card.style.pointerEvents = ad >= 3 ? 'none' : 'auto';
+    }
+    card.classList.toggle('deck-front', visible);
+    card.classList.toggle('deck-side', !visible);
   });
   requestAnimationFrame(() => {
     const front = container.querySelector('.deck-front');
     const wrap = container.closest('.deck-wrap');
     const log = document.getElementById('main-log-panel');
     if (!front || !wrap) return;
-    const height = Math.max(740, front.offsetHeight);
+    const height = Math.max(740, ...Array.from(container.querySelectorAll('.deck-front'), el => el.offsetHeight));
     wrap.style.height = `${height}px`;
     if (log && window.innerWidth > 760) {
       log.style.height = `${height + 45}px`;
