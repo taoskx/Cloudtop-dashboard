@@ -118,6 +118,7 @@ class EcloudEngine extends (require('events').EventEmitter) {
   constructor(opts = {}) {
     super();
     this.pythonPath = opts.pythonPath || resolvePython();
+    this.sidecarPath = !opts.pythonPath && !process.env.ECLOUD_PYTHON ? process.env.ECLOUD_SIDECAR : null;
     this.onLog = opts.onLog || (() => {});
     this.onStderr = opts.onStderr || (() => {});
     this.requestTimeoutMs = opts.requestTimeoutMs || 45000;
@@ -168,7 +169,9 @@ class EcloudEngine extends (require('events').EventEmitter) {
     try {
       // 解释器解析：构造函数里传入的 pythonPath（显式指定 / 测试注入）作为第一候选，
       // 其余平台候选兜底；全部不可用 ⇒ 明确失败（带根治指引），不 spawn。
-      if (!this._spawnTarget) {
+      if (this.sidecarPath) {
+        this._spawnTarget = { path: this.sidecarPath, args: [] };
+      } else if (!this._spawnTarget) {
         const probe = await probePythonInterpreter(this.pythonPath, []);
         if (probe.ok) {
           this._spawnTarget = { path: this.pythonPath, args: [] };
@@ -187,8 +190,9 @@ class EcloudEngine extends (require('events').EventEmitter) {
         }
       }
 
-      const child = spawn(this._spawnTarget.path, [...this._spawnTarget.args, SIDECAR], {
-        cwd: ENGINE_DIR,
+      const child = spawn(this._spawnTarget.path, this.sidecarPath ? [] : [...this._spawnTarget.args, SIDECAR], {
+        cwd: this.sidecarPath ? path.dirname(this.sidecarPath) : ENGINE_DIR,
+        windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, ...this.extraEnv },
       });

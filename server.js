@@ -23,6 +23,8 @@ const { EcloudClient, LOG_SOURCE: ECLOUD_LOG_SOURCE, INTERACTIVE_BRANCHES } = re
 const { LogPersister } = require('./app/persist_log');
 const { UnlockManager } = require('./app/unlock_manager');
 const { sendMail } = require('./app/smtp_mailer');
+const { normalizeMailConfig, smtpHostFor } = require('./app/mail_config');
+const { defaultDataDir, migrateLegacyDataDir } = require('./app/data_dir');
 
 // 全局异常拦截看门狗 (确保守护服务长期稳定运行不宕机)
 // 【2026-09-27 退出取证】现场：面板曾静默死亡一次（exit=1、stdout/stderr 零输出、
@@ -55,12 +57,17 @@ process.on('SIGTERM', () => {
 });
 
 const PORT = process.env.PORT || 8571;
-const DATA_DIR = process.env.CTYUN_DATA_DIR || path.join(__dirname, 'data');
+const DATA_DIR = defaultDataDir();
 const STATIC_DIR = path.join(__dirname, 'app', 'static');
 const CONFIG_FILE = path.join(DATA_DIR, 'app_config.json');
 const ACCOUNTS_JSON = path.join(DATA_DIR, 'accounts.json');
 const DEVICES_DIR = path.join(DATA_DIR, 'devices');
 
+// 旧版在程序同级写 data/；首次启动新版本时复制旧数据，避免升级丢账号。
+// CTYUN_DATA_DIR 显式指定的目录（包括 Docker 卷）保持原有语义。
+if (!process.env.CTYUN_DATA_DIR) {
+  migrateLegacyDataDir(DATA_DIR, path.join(process.pkg ? path.dirname(process.execPath) : __dirname, 'data'));
+}
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DEVICES_DIR)) fs.mkdirSync(DEVICES_DIR, { recursive: true });
 
@@ -908,7 +915,7 @@ function getDefaultConfig() {
         webhookUrl: ''
       },
       systemTitle: 'Cloudtop Dashboard',
-      systemSubtitle: '多账号保活 · 每日签到 · 智能挂机'
+      systemSubtitle: '云电脑保活与签到管理'
     },
     users: [],
     accounts: []
@@ -968,6 +975,9 @@ function loadConfig() {
     // 【2026-10-23 v2.6.0 更名】旧默认标题自动迁移为 Cloudtop Dashboard（用户自定义过的标题不动）
     if (cfg.settings && cfg.settings.systemTitle === '天翼云 / 移动云 保活控制台') {
       cfg.settings.systemTitle = 'Cloudtop Dashboard';
+    }
+    if (cfg.settings && cfg.settings.systemSubtitle === '多账号保活 · 每日签到 · 智能挂机') {
+      cfg.settings.systemSubtitle = '云电脑保活与签到管理';
     }
     if (!Array.isArray(cfg.accounts)) cfg.accounts = [];
     if (!Array.isArray(cfg.users)) cfg.users = [];
@@ -1092,8 +1102,8 @@ const MAIL_CONFIG_FILE = path.join(DATA_DIR, 'mail-config.json');
 // 不进代码仓库），这样单个 exe 到任何电脑都能直接发码；本机「作者设置」保存的配置优先于它。
 const BAKED_MAIL_CONFIG_FILE = path.join(__dirname, 'baked-mail-config.json');
 function loadMailConfig() {
-  try { return JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8')); } catch (e) { /* 落到烘焙配置 */ }
-  try { return JSON.parse(fs.readFileSync(BAKED_MAIL_CONFIG_FILE, 'utf8')); } catch (e) { return null; }
+  try { return normalizeMailConfig(JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8'))); } catch (e) { /* 落到烘焙配置 */ }
+  try { return normalizeMailConfig(JSON.parse(fs.readFileSync(BAKED_MAIL_CONFIG_FILE, 'utf8'))); } catch (e) { return null; }
 }
 function saveMailConfig(cfg) {
   atomicWriteFileSync(MAIL_CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8', 0o600);
@@ -3328,10 +3338,6 @@ function initAllKeepAlive() {
   }
 }
 
-if (require.main === module) {
-  setTimeout(initAllKeepAlive, 2000);
-}
-
 // 初始化定时任务调度中心
 const taskScheduler = new TaskScheduler({
   getAccounts: () => appConfig.accounts,
@@ -3363,10 +3369,6 @@ const taskScheduler = new TaskScheduler({
   },
   saveConfig: () => saveConfig(appConfig)
 });
-if (require.main === module) {
-  setTimeout(() => taskScheduler.start(), 3000);
-}
-
 // ==========================================================
 // HTTP 路由与 API 服务
 // ==========================================================
@@ -3391,7 +3393,7 @@ function serveStatic(res, filePath, contentType) {
       if (contentType.includes('text/html')) {
         let htmlStr = data.toString('utf8');
         const currentTitle = appConfig.settings?.systemTitle || 'Cloudtop Dashboard';
-        const currentSubtitle = appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机';
+        const currentSubtitle = appConfig.settings?.systemSubtitle || '云电脑保活与签到管理';
         htmlStr = htmlStr.replace(/<h1 id="main-system-title">[^<]*<\/h1>/, `<h1 id="main-system-title">${currentTitle}<\/h1>`);
         htmlStr = htmlStr.replace(/(<p style="font-size: 13px; color: var\(--text-muted\); margin-top: 2px;">)[^<]*(<\/p>)/, `$1${currentSubtitle}$2`);
         htmlStr = htmlStr.replace(/<title>[^<]*<\/title>/, `<title>${currentTitle} - 多账号保活控制台<\/title>`);
@@ -3862,6 +3864,7 @@ function rewardNeedsDesktop(prodId, prodType) {
       if (rel.endsWith('.css')) type = 'text/css; charset=utf-8';
       else if (rel.endsWith('.js')) type = 'application/javascript; charset=utf-8';
       else if (rel.endsWith('.html')) type = 'text/html; charset=utf-8';
+      else if (rel.endsWith('.svg')) type = 'image/svg+xml';
       serveStatic(res, file, type);
     } else {
       const targetUrl = 'https://pc.ctyun.cn' + pathname;
@@ -3892,8 +3895,10 @@ function rewardNeedsDesktop(prodId, prodType) {
   if (pathname === '/api/unlock/mail-config' && req.method === 'GET') {
     // 只回配置状态与非敏感字段，密码绝不下发
     const cfg = loadMailConfig() || {};
+    const configured = !!(cfg.smtpUser && cfg.smtpPass && cfg.notifyTo);
     jsonResponse(res, {
-      configured: !!(cfg.smtpUser && cfg.smtpPass && cfg.notifyTo),
+      editable: !unlockManager.isUnlocked() && !configured,
+      configured,
       smtpHost: cfg.smtpHost || 'smtp.gmail.com',
       smtpPort: cfg.smtpPort || 465,
       smtpUser: cfg.smtpUser || '',
@@ -3902,15 +3907,19 @@ function rewardNeedsDesktop(prodId, prodType) {
     return;
   }
   if (pathname === '/api/unlock/mail-config' && req.method === 'POST') {
-    // 作者设置：未解锁时可填（首次配置）；已解锁后仅管理员会话可改。
-    if (unlockManager.isUnlocked() && !getSessionFromReq(req, parsedUrl)) {
-      jsonResponse(res, { error: '无权修改发信配置' }, 403);
+    // 解锁后配置永久冻结。先于解析请求体检查，避免合成管理员会话绕过限制。
+    if (unlockManager.isUnlocked()) {
+      jsonResponse(res, { success: false, error: '应用已解锁，发信配置不可修改' }, 403);
+      return;
+    }
+    const prev = loadMailConfig() || {};
+    if (prev.smtpUser && prev.smtpPass && prev.notifyTo) {
+      jsonResponse(res, { success: false, error: '发信配置已完成初始化，不可通过网页覆盖' }, 403);
       return;
     }
     const body = await parseJsonBody(req);
-    const prev = loadMailConfig() || {};
     const cfg = {
-      smtpHost: String(body.smtpHost || prev.smtpHost || 'smtp.gmail.com').trim(),
+      smtpHost: String(body.smtpHost || smtpHostFor(body.smtpUser)).trim(),
       smtpPort: parseInt(body.smtpPort) || prev.smtpPort || 465,
       smtpUser: String(body.smtpUser || '').trim(),
       smtpPass: String(body.smtpPass || '').trim() || prev.smtpPass || '',
@@ -4120,7 +4129,7 @@ function rewardNeedsDesktop(prodId, prodType) {
       jsonResponse(res, {
         isLoggedIn: true,
         systemTitle: appConfig.settings?.systemTitle || 'Cloudtop Dashboard',
-        systemSubtitle: appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机',
+        systemSubtitle: appConfig.settings?.systemSubtitle || '云电脑保活与签到管理',
         user: {
           id: user.id,
           username: user.username,
@@ -4137,7 +4146,7 @@ function rewardNeedsDesktop(prodId, prodType) {
         allowRegistration: appConfig.settings?.allowRegistration === true,
         defaultQuota: appConfig.settings?.defaultQuota || 2,
         systemTitle: appConfig.settings?.systemTitle || 'Cloudtop Dashboard',
-        systemSubtitle: appConfig.settings?.systemSubtitle || '多账号保活 · 每日签到 · 智能挂机'
+        systemSubtitle: appConfig.settings?.systemSubtitle || '云电脑保活与签到管理'
       });
     }
     return;
@@ -6639,8 +6648,10 @@ function rewardNeedsDesktop(prodId, prodType) {
   jsonResponse(res, { error: 'Not Found' }, 404);
 });
 
-if (require.main === module) {
-  server.listen(PORT, '0.0.0.0', () => {
+function startServer(options = {}) {
+  server.listen(options.port ?? PORT, options.host || '0.0.0.0', () => {
+    setTimeout(initAllKeepAlive, 2000);
+    setTimeout(() => taskScheduler.start(), 3000);
     const isDockerEnv = fs.existsSync('/.dockerenv') || process.env.CTYUN_DATA_DIR === '/app/data';
     console.log(`===========================================================`);
     console.log(`🚀 天翼云/移动云电脑全功能可视化管理平台已完全就绪！`);
@@ -6661,9 +6672,13 @@ if (require.main === module) {
     if (restoredLogs > 0) console.log(`📜 已从磁盘回灌 ${restoredLogs} 条历史日志 (${LOG_DIR})`);
     appendLog('System', `控制台服务已就绪，当前加载 ${appConfig.accounts.length} 个账号（回灌历史日志 ${restoredLogs} 条）`, 'success');
   });
+  return server;
 }
 
+if (require.main === module) startServer();
+
 module.exports = {
+  startServer,
   CtYunClient,
   appConfig,
   server,

@@ -1,17 +1,26 @@
 {
   "name": "cloudtop-dashboard",
-  "version": "2.7.0",
+  "version": "2.7.3",
   "description": "天翼云电脑/移动爱家/移动公众可视化多账号保活控制中心",
-  "main": "server.js",
+  "main": "desktop.js",
   "scripts": {
     "start": "node server.js",
     "check": "node tests/syntax_check.js",
-    "test": "node tests/syntax_check.js && node tests/regression.test.js",
+    "test": "node tests/syntax_check.js && node tests/data_dir.test.js && node tests/desktop_runtime.test.js && node tests/mail_config.test.js && node tests/smtp_mailer.test.js && node tests/regression.test.js",
     "test:mutation": "node tests/mutation_check.js",
     "smoke": "node analysis/smoke_check.js",
-    "verify": "node tests/syntax_check.js && node tests/regression.test.js && node tests/mutation_check.js && node analysis/smoke_check.js"
+    "verify": "node tests/syntax_check.js && node tests/regression.test.js && node tests/mutation_check.js && node analysis/smoke_check.js",
+    "build:windows": "node scripts/build-windows.js",
+    "test:windows-exe": "node scripts/windows-smoke.js",
+    "start:desktop": "electron ."
   },
   "dependencies": {
     "ws": "^8.21.3"
-  }
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0"
+  },
+  "author": "taoskx"
 }

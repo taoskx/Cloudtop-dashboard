@@ -4,20 +4,53 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Cloudtop Dashboard</title>
-  <link rel="icon" type="image/png" href="/static/robot-icon.png">
+  <link rel="icon" type="image/png" href="/static/cloudtop-logo.png">
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/glass.css">
 </head>
 <body>
   <div class="container">
     <!-- 顶部导航 -->
     <header>
+      <div class="header-top">
       <div class="logo-group">
-        <div class="logo-icon logo-robot"><img src="/static/robot-icon.png" alt="Cloudtop Dashboard"></div>
+        <div class="logo-icon"><img src="/static/cloudtop-logo.png" alt="" width="34" height="34"></div>
         <div class="title-group">
           <h1 id="main-system-title">Cloudtop Dashboard</h1>
-          <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">多账号保活 · 每日签到 · 智能挂机</p>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">云电脑保活与签到管理</p>
         </div>
       </div>
+    <!-- 统计卡片 (未登录时不渲染显示) -->
+    <div class="stats-grid hidden" id="main-stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M16 5.4a3.2 3.2 0 0 1 0 5.9"/><path d="M17.5 14.9c1.7.6 2.7 1.9 3 4.1"/></svg></div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-label">账号总数</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.2-6 4 12 2.3-6H21"/></svg></div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-online">0</div>
+          <div class="stat-label">保活在线</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.5"/><path d="M4 10.2h16"/><path d="M8.5 3.5v4M15.5 3.5v4"/><path d="m9.2 15.6 1.9 1.9 3.7-3.9"/></svg></div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-signed">0</div>
+          <div class="stat-label">今日签到</div>
+        </div>
+      </div>
+      <div class="stat-card" style="cursor: pointer;" onclick="openPointsDetailModal()" title="查看积分明细">
+        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="1.5"/><path d="M12 11v9M4 15.5h16"/><path d="M12 11a2.6 2.6 0 1 1 2.6-2.6C14.6 10.1 12 11 12 11zm0 0a2.6 2.6 0 1 0-2.6-2.6C9.4 10.1 12 11 12 11z"/></svg></div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-points" style="color: var(--accent-2);">0</div>
+          <div class="stat-label">今日积分</div>
+        </div>
+      </div>
+    </div>
       <div class="header-actions">
         <!-- 未登录时仅显示登录/注册按钮 -->
         <button class="btn btn-primary" id="btn-auth-action" onclick="openAuthModal()">登录</button>
@@ -52,39 +85,9 @@
           </div>
         </div>
       </div>
-    </header>
+      </div>
 
-    <!-- 统计卡片 (未登录时不渲染显示) -->
-    <div class="stats-grid hidden" id="main-stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M16 5.4a3.2 3.2 0 0 1 0 5.9"/><path d="M17.5 14.9c1.7.6 2.7 1.9 3 4.1"/></svg></div>
-        <div class="stat-info">
-          <div class="stat-value" id="stat-total">0</div>
-          <div class="stat-label">账号总数</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.2-6 4 12 2.3-6H21"/></svg></div>
-        <div class="stat-info">
-          <div class="stat-value" id="stat-online">0</div>
-          <div class="stat-label">保活在线</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.5"/><path d="M4 10.2h16"/><path d="M8.5 3.5v4M15.5 3.5v4"/><path d="m9.2 15.6 1.9 1.9 3.7-3.9"/></svg></div>
-        <div class="stat-info">
-          <div class="stat-value" id="stat-signed">0</div>
-          <div class="stat-label">今日签到</div>
-        </div>
-      </div>
-      <div class="stat-card" style="cursor: pointer;" onclick="openPointsDetailModal()" title="查看积分明细">
-        <div class="stat-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="1.5"/><path d="M12 11v9M4 15.5h16"/><path d="M12 11a2.6 2.6 0 1 1 2.6-2.6C14.6 10.1 12 11 12 11zm0 0a2.6 2.6 0 1 0-2.6-2.6C9.4 10.1 12 11 12 11z"/></svg></div>
-        <div class="stat-info">
-          <div class="stat-value" id="stat-points" style="color: var(--accent-2);">0</div>
-          <div class="stat-label">今日积分</div>
-        </div>
-      </div>
-    </div>
+    </header>
 
     <!-- 账号列表区域 -->
     <div class="section-header hidden" id="main-section-header">
@@ -118,11 +121,6 @@
     <div class="log-panel hidden" id="main-log-panel">
       <div class="log-header">
         <div class="log-header-left">
-          <div class="mac-dots">
-            <div class="mac-dot mac-dot-red"></div>
-            <div class="mac-dot mac-dot-yellow"></div>
-            <div class="mac-dot mac-dot-green"></div>
-          </div>
           <span class="log-title">实时日志</span>
           <span class="badge badge-online" id="log-status">已连接</span>
         </div>
@@ -158,7 +156,7 @@
       <div>Cloudtop Dashboard</div>
       <div style="margin-top: 6px;" id="footer-version-container">
         <span id="footer-version-badge" style="color: var(--text-muted); cursor: default;">
-          当前版本 v2.7.0
+          当前版本 v2.7.3
         </span>
       </div>
     </footer>
@@ -793,7 +791,10 @@
   <div class="modal-backdrop hidden" id="unlock-modal">
     <div class="modal" style="max-width: 440px;">
       <div class="modal-header">
-        <h3>应用解锁</h3>
+        <div class="unlock-heading">
+          <div class="unlock-symbol" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1"/></svg></div>
+          <div><span class="unlock-eyebrow">CLOUDTOP DASHBOARD</span><h3>应用解锁</h3></div>
+        </div>
       </div>
       <div class="modal-body" style="gap: 14px; padding-top: 20px;">
         <p style="font-size: 13px; line-height: 1.7; color: var(--text-secondary); margin: 0;">
@@ -813,6 +814,7 @@
           <a href="#" onclick="toggleMailConfigForm(event)" style="font-size: 12px; color: var(--text-muted);">作者设置</a>
         </div>
         <div id="mail-config-form" class="hidden" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+          <p id="mail-config-locked-notice" class="form-text hidden">发信配置已锁定。如需更改，请在本机数据目录中更新 mail-config.json 后重启程序。</p>
           <div class="form-group">
             <label>发信邮箱</label>
             <input type="email" class="form-control" id="mc-smtp-user" placeholder="用于发送验证码的邮箱">
@@ -956,16 +958,20 @@
   <div class="modal-backdrop hidden" id="release-notes-modal">
     <div class="modal" style="max-width: 650px; max-height: 85vh; display: flex; flex-direction: column;">
       <div class="modal-header">
-        <h3>更新说明（v2.7.0）</h3>
+        <h3>更新说明（v2.7.3）</h3>
         <button class="modal-close" onclick="closeModal('release-notes-modal')">&times;</button>
       </div>
       <div class="modal-body" style="font-size: 13px; line-height: 1.7; color: var(--text-secondary); overflow-y: auto; max-height: calc(85vh - 120px); display: flex; flex-direction: column; gap: 16px;">
         <div style="background: var(--accent-light); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-weight: 700; color: var(--accent); font-size: 14.5px;">v2.7.0 · 当前版本</div>
+            <div style="font-weight: 700; color: var(--accent); font-size: 14.5px;">v2.7.3 · 当前版本</div>
             <div style="color: var(--text-muted); font-size: 12px;">2026-10-23</div>
           </div>
           <ul style="padding-left: 18px; display: flex; flex-direction: column; gap: 6px; margin: 0;">
+            <li><b>双卡并排与新图标</b>：卡片缩窄 25%，前排双卡直接操作，更多卡片磨砂叠放；全新云电脑在线助手 Logo。</li>
+            <li><b>纵向卡片与侧边日志</b>：完整呈现设备与任务，日志移至右侧；后排磨砂卡片实时显示在线状态。</li>
+            <li><b>独立桌面窗口</b>：便携版直接进入软件界面，云控制台弹窗也保留在软件内。</li>
+            <li><b>QQ 邮箱修复</b>：自动使用 QQ SMTP 服务，修复旧配置并明确处理发信超时与断线。</li>
             <li><b>全新叠放卡片</b>：账号卡片改为 iPhone 后台式叠放呈现，全部账号一屏看完、页面不再滚动；鼠标悬停侧卡预览、点击切换到中间操作，滚轮/方向键/圆点也可切换，动画顺滑。</li>
             <li><b>新图标</b>：程序图标更换为机器人新形象（窗口、任务栏与网页图标同步）。</li>
           </ul>

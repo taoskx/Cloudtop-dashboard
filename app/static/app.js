@@ -1716,18 +1716,20 @@ function updateAccountsInPlace(filteredAccounts) {
 // ============================================================
 let deckFocusIdx = 0;
 let deckEventsBound = false;
+let deckPeekIdx = -1;
 
-function deckTransformFor(d, peek) {
+function deckTransformFor(d, mode = 'normal') {
   const ad = Math.abs(d);
-  let x = 0, sc = 1;
+  let x = 0, sc = 1, y = 0, tilt = 0;
   if (d !== 0) {
     const dir = d > 0 ? 1 : -1;
-    if (ad === 1) { x = dir * 34; sc = 0.93; }
-    else if (ad === 2) { x = dir * 68; sc = 0.87; }
-    else { x = dir * 100; sc = 0.82; }
-    if (peek) { x -= dir * 7; sc += 0.02; }
+    if (ad === 1) { x = dir * 19; sc = 0.96; y = 18; tilt = dir * 1.5; }
+    else if (ad === 2) { x = dir * 38; sc = 0.92; y = 36; tilt = dir * 3; }
+    else { x = dir * 102; sc = 0.76; tilt = dir * 11; }
+    if (mode === 'peek') { x -= dir * 8; sc += 0.055; y = -13; tilt *= 0.35; }
+    if (mode === 'retreat') x += dir * 8;
   }
-  return `translate(-50%, 0) translateX(${x}%) scale(${sc})`;
+  return `translate(-50%, 0) translateX(${x}%) translateY(${y}px) rotate(${tilt}deg) scale(${sc})`;
 }
 
 function setDeckNavVisible(v) {
@@ -1761,16 +1763,54 @@ function layoutDeck() {
   } catch (e) { /* 隐私模式等场景忽略 */ }
   focus = Math.max(0, Math.min(focus, n - 1));
   deckFocusIdx = focus;
+  const paired = window.innerWidth > 1100 && n > 1;
+  const pairStart = Math.min(focus, n - 2);
   cards.forEach((card, i) => {
     const d = i - focus;
+    const slot = i - pairStart;
+    const visible = paired ? slot === 0 || slot === 1 : d === 0;
     const ad = Math.abs(d);
+    const peekD = deckPeekIdx - focus;
+    const mode = deckPeekIdx === i ? 'peek' : deckPeekIdx >= 0 && d !== 0 && Math.sign(d) === Math.sign(peekD) && ad > Math.abs(peekD) ? 'retreat' : 'normal';
     card.dataset.deckD = d;
-    card.style.transform = deckTransformFor(d, false);
-    card.style.opacity = d === 0 ? '1' : ad === 1 ? '0.96' : ad === 2 ? '0.7' : '0';
-    card.style.zIndex = String(40 - ad * 10);
-    card.style.pointerEvents = ad >= 3 ? 'none' : 'auto';
-    card.classList.toggle('deck-front', d === 0);
-    card.classList.toggle('deck-side', d !== 0);
+    const cover = card.querySelector('.deck-cover');
+    if (cover) {
+      cover.dataset.edge = (paired ? slot < 0 : d < 0) ? 'left' : 'right';
+      const states = Array.from(card.querySelectorAll('.vm-device-header .badge')).filter(el => ['运行中', '已关机', '状态未知'].includes(el.textContent.trim()));
+      const running = states.filter(el => el.textContent.trim() === '运行中').length;
+      const offline = states.filter(el => el.textContent.trim() === '已关机').length;
+      const status = cover.querySelector('.deck-cover-status');
+      status.textContent = running ? `${running} 台在线` : offline && offline === states.length ? '已关机' : '待同步';
+      status.dataset.online = running ? 'true' : 'false';
+      cover.querySelector('.deck-cover-detail').textContent = states.length ? `共 ${states.length} 台设备` : '等待设备状态';
+    }
+    if (paired) {
+      const distance = slot < 0 ? -slot : slot - 1;
+      const x = visible ? (slot === 0 ? -48.5 : 48.5) : (slot < 0 ? -1 : 1) * (76 + Math.max(0, distance - 1) * 19);
+      const scale = visible ? 1 : Math.max(.8, .96 - distance * .025);
+      card.style.transform = `translate(-50%, 0) translateX(${x}%) translateY(${visible ? (slot === 0 ? 0 : 16) : 20 + distance * 14}px) rotate(${visible ? (slot === 0 ? -.4 : .4) : 1.2}deg) scale(${scale})`;
+      card.style.opacity = visible || distance <= 2 ? '1' : '0';
+      card.style.zIndex = String(visible ? (i === focus ? 42 : 40) : 30 - distance);
+      card.style.pointerEvents = visible || distance <= 2 ? 'auto' : 'none';
+    } else {
+      card.style.transform = deckTransformFor(d, mode);
+      card.style.opacity = ad <= 2 ? '1' : '0';
+      card.style.zIndex = String(mode === 'peek' ? 45 : 40 - ad * 10);
+      card.style.pointerEvents = ad >= 3 ? 'none' : 'auto';
+    }
+    card.classList.toggle('deck-front', visible);
+    card.classList.toggle('deck-side', !visible);
+  });
+  requestAnimationFrame(() => {
+    const front = container.querySelector('.deck-front');
+    const wrap = container.closest('.deck-wrap');
+    const log = document.getElementById('main-log-panel');
+    if (!front || !wrap) return;
+    const height = Math.max(740, ...Array.from(container.querySelectorAll('.deck-front'), el => el.offsetHeight)) + (paired ? 20 : 0);
+    wrap.style.height = `${height}px`;
+    if (log && window.innerWidth > 760) {
+      log.style.height = `${height + 45}px`;
+    } else if (log) log.style.height = '';
   });
   renderDeckDots(n, focus);
   setDeckNavVisible(n > 1);
@@ -1782,6 +1822,7 @@ function deckFocusTo(idx) {
   const cards = container.querySelectorAll(':scope > .account-card');
   if (!cards.length) return;
   deckFocusIdx = Math.max(0, Math.min(idx, cards.length - 1));
+  deckPeekIdx = -1;
   const id = cards[deckFocusIdx].dataset.accId;
   try { localStorage.setItem('cloudtop-deck-focus', id); } catch (e) { /* 忽略 */ }
   layoutDeck();
@@ -1805,19 +1846,30 @@ function initDeckEvents() {
   // 悬停侧卡：向中心轻探预览；移开恢复
   container.addEventListener('mouseover', (e) => {
     const card = e.target.closest('.account-card');
-    if (!card || card.classList.contains('deck-front') || card.__peeked) return;
-    card.__peeked = true;
-    const d = parseInt(card.dataset.deckD || '0', 10);
-    if (d !== 0) {
-      card.style.transform = deckTransformFor(d, true);
-      card.style.zIndex = '35';
-    }
+    if (!card || card.classList.contains('deck-front')) return;
+    const cards = Array.from(container.querySelectorAll(':scope > .account-card'));
+    const idx = cards.indexOf(card);
+    if (idx === deckPeekIdx) return;
+    deckPeekIdx = idx;
+    layoutDeck();
   });
   container.addEventListener('mouseout', (e) => {
     const card = e.target.closest('.account-card');
     if (!card || (e.relatedTarget && card.contains(e.relatedTarget))) return;
-    if (card.__peeked) { card.__peeked = false; layoutDeck(); }
+    if (deckPeekIdx >= 0) { deckPeekIdx = -1; layoutDeck(); }
   });
+
+  let touchStart = null;
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  container.addEventListener('touchend', (e) => {
+    if (!touchStart || !container.classList.contains('deck') || !e.changedTouches.length) return;
+    const dx = e.changedTouches[0].clientX - touchStart.x;
+    const dy = e.changedTouches[0].clientY - touchStart.y;
+    touchStart = null;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) deckFocusTo(deckFocusIdx + (dx < 0 ? 1 : -1));
+  }, { passive: true });
 
   // 滚轮（在侧卡/背景上）切换聚焦；前卡内部照常滚动
   let lastWheel = 0;
@@ -1903,11 +1955,10 @@ function renderAccounts(isSilent = false) {
     const tabNameMap = { ydpc: '移动爱家', ctyun: '天翼云电脑', ecloud: '移动公众' };
     const tabName = tabNameMap[activeAccountViewTab] || '云电脑';
     container.innerHTML = `
-      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted); background: var(--bg-secondary); border-radius: var(--radius); border: 1px dashed var(--border);">
-        <p style="font-size: 15px; margin-bottom: 12px;">当前暂未配置【${tabName}】设备</p>
-        <button class="btn btn-primary" onclick="openAddAccountModal()">➕ 立即添加云电脑</button>
-      </div>
-    `;
+      <div class="deck-empty">
+        <div class="deck-empty-orb" aria-hidden="true"><span class="deck-empty-orb-ring"></span><span class="deck-empty-orb-core"></span><span class="deck-empty-orb-star">✦</span></div>
+        <div class="deck-empty-copy"><span class="deck-empty-eyebrow">YOUR CLOUD SPACE</span><h2>让云端，随时在线。</h2><p>当前还没有${tabName}设备。添加第一台云电脑，保活、签到与状态即可在这里一览无余。</p><button class="btn btn-primary" onclick="openAddAccountModal()">添加云电脑 <span aria-hidden="true">↗</span></button></div>
+      </div>`;
     return;
   }
 
@@ -1940,6 +1991,16 @@ function renderAccounts(isSilent = false) {
     const acc = filteredAccounts.find(a => a.id === accId);
     if (!acc) return;
     const card = buildAccountCardElement(acc, idx);
+    const platform = String(acc.platform || 'ctyun').toLowerCase();
+    card.dataset.platform = platform;
+    const cover = document.createElement('div');
+    cover.className = 'deck-cover';
+    cover.setAttribute('aria-hidden', 'true');
+    const platformName = { ctyun: '天翼云', ydpc: '移动爱家', ecloud: '移动公众' }[platform] || '云电脑';
+    cover.innerHTML = '<div class="deck-cover-summary"><span class="deck-cover-platform"></span><span class="deck-cover-title"></span><span class="deck-cover-status" role="status"></span><span class="deck-cover-detail"></span><span class="deck-cover-open">点击查看 ↗</span></div>';
+    cover.querySelector('.deck-cover-title').textContent = acc.remark || acc.name || platformName;
+    cover.querySelector('.deck-cover-platform').textContent = platformName;
+    card.appendChild(cover);
     card.draggable = false; // deck 模式不使用 HTML5 拖拽排序（点击聚焦切换）
     fragment.appendChild(card);
   });
@@ -4006,7 +4067,7 @@ async function openSettingsModal() {
       document.getElementById("set-system-title").value = settings.systemTitle || "Cloudtop Dashboard";
     }
     if (document.getElementById("set-system-subtitle")) {
-      document.getElementById("set-system-subtitle").value = settings.systemSubtitle || "多账号保活 · 每日签到 · 智能挂机";
+      document.getElementById("set-system-subtitle").value = settings.systemSubtitle || "云电脑保活与签到管理";
     }
     if (document.getElementById("cron-task-time")) {
       document.getElementById("cron-task-time").value = c.executeTime || "01:20";
@@ -4050,7 +4111,7 @@ async function saveSettings() {
   const customSubtitle = document.getElementById("set-system-subtitle") ? document.getElementById("set-system-subtitle").value.trim() : "";
   const payload = {
     systemTitle: customTitle || "Cloudtop Dashboard",
-    systemSubtitle: customSubtitle || "多账号保活 · 每日签到 · 智能挂机",
+    systemSubtitle: customSubtitle || "云电脑保活与签到管理",
     keepAliveSeconds: 60,
     pulseIntervalSeconds: 30,
     allowRegistration: document.getElementById("set-allow-reg") ? document.getElementById("set-allow-reg").checked : false,
@@ -5095,7 +5156,13 @@ async function loadMailConfigForm() {
     const res = await fetch("/api/unlock/mail-config");
     const cfg = await res.json();
     document.getElementById("mc-smtp-user").value = cfg.smtpUser || "";
-    document.getElementById("mc-notify-to").value = cfg.notifyTo || "b.iz@qq.com";
+    document.getElementById("mc-notify-to").value = cfg.notifyTo || "";
+    const form = document.getElementById("mail-config-form");
+    if (form) {
+      form.querySelectorAll("input, button").forEach(el => { el.disabled = cfg.editable === false; });
+      const notice = document.getElementById("mail-config-locked-notice");
+      if (notice) notice.classList.toggle("hidden", cfg.editable !== false);
+    }
   } catch (e) {}
 }
 
@@ -5108,7 +5175,10 @@ async function saveMailConfig() {
   try {
     const res = await fetch("/api/unlock/mail-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
-    if (data.success) setUnlockMsg("发信配置已保存，现在可以申请验证码了", "ok");
+    if (data.success) {
+      setUnlockMsg("发信配置已保存，现在可以申请验证码了", "ok");
+      loadMailConfigForm();
+    }
     else setUnlockMsg(data.error || "保存失败", "error");
   } catch (e) { setUnlockMsg("网络异常，保存失败", "error"); }
 }

@@ -187,13 +187,26 @@ ctyun-dashboard/
 │   │   └── ydpc_client.js    #   保活守护看门狗与生命周期管理
 │   ├── tasks/                # 官方任务自动化 (签到/AI对话/挂机/兑换/调度)
 │   └── static/               # 前端控制台 (原生 HTML/CSS/JS，无构建步骤)
-├── data/                     # 运行时数据目录 (配置加密落盘，建议挂载持久化)
+├── data/                     # Docker 数据卷及旧版本地数据；桌面运行默认使用系统应用数据目录
 ├── Dockerfile
 └── docker-compose.yml
 ```
 
 ---
 
+### 桌面运行的数据位置
+
+直接运行程序时，账号、密钥、解锁状态和日志默认保存在系统应用数据目录，不会在 EXE 或源码旁新建 `data` 文件夹：
+
+| 系统 | 默认位置 |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\Cloudtop Dashboard` |
+| macOS | `~/Library/Application Support/Cloudtop Dashboard` |
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/cloudtop-dashboard` |
+
+首次启动新版时，如果程序旁有旧版 `data` 文件夹且新位置尚不存在，程序会将旧数据复制过去。确认新位置的数据可用后，可以自行移除旧文件夹。需要便携存储或运行 Docker 时，继续设置 `CTYUN_DATA_DIR` 指向自选目录；Docker Compose 仍使用原有 `./data` 卷。
+
+---
 
 ## 🔒 安全规范
 
@@ -208,3 +221,22 @@ ctyun-dashboard/
 *本项目仅供自动化运维、技术研究与学习交流使用，请遵守天翼云、中国移动云电脑平台相关使用规范与协议。*
 
 借鉴了ecloud-cmsszte-alive；leleji/CtYun等项目
+
+### Windows 独立桌面便携版
+
+双击 `Cloudtop-Dashboard-v2.7.1-Windows-x64.exe` 直接打开软件窗口。界面不跳转到系统浏览器，云控制台弹窗也在软件内打开；关闭窗口即退出程序。
+
+程序内置桌面渲染引擎、Node.js、移动公众 Python 引擎和协议依赖。账号、邮箱配置、日志与界面缓存默认位于 `%LOCALAPPDATA%\Cloudtop Dashboard`，程序同级不会新建 data 文件夹。服务仅监听本机回环接口的随机端口，不对外网提供桌面服务。`CTYUN_DATA_DIR` 仍可指定数据目录。
+
+QQ 邮箱自动使用 `smtp.qq.com:465`，授权码用于 SMTP 登录；旧版错误的 Gmail 默认配置会被修正。网页在配置完成或应用解锁后保持只读。私人打包配置仅由作者在本地加入，公开构建不包含邮箱密码或账号数据。
+
+在 Windows x64 上构建：
+
+```powershell
+npm ci
+python -m pip install -r app/ecloud_engine/requirements.txt pyinstaller==6.22.3
+npm run build:windows
+npm run test:windows-exe
+```
+
+工作流会实际打开独立桌面窗口，检查界面、渲染隔离、内置 Python 引擎、中文路径和系统数据目录，并输出测试报告及界面截图。

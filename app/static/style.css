@@ -2313,8 +2313,147 @@ body { overflow: hidden; padding: 0; }
 }
 .deck-dot.active { width: 22px; background: var(--accent); }
 
-.logo-robot { background: transparent !important; box-shadow: none !important; }
-.logo-robot img { width: 34px; height: 34px; object-fit: contain; display: block; }
+/* Cloudtop visual layer: warm canvas, precise surfaces, and purposeful motion. */
+:root {
+  --bg-primary: #edf3f1;
+  --bg-surface: #ffffff;
+  --bg-muted: #f1f6f4;
+  --bg-subtle: #f7faf8;
+  --bg-hover: #e5f0ed;
+  --text-main: #18302e;
+  --text-secondary: #415754;
+  --text-muted: #68807b;
+  --border: rgba(28, 80, 72, 0.14);
+  --accent: #126d62;
+  --accent-hover: #0b594f;
+  --accent-light: rgba(18, 109, 98, 0.11);
+  --accent-gradient: linear-gradient(135deg, #12786c, #0b5b52);
+  --accent-gradient-hover: linear-gradient(135deg, #0c675d, #084b44);
+  --accent-2: #bf7650;
+  --accent-2-light: rgba(191, 118, 80, 0.13);
+  --glow: rgba(18, 109, 98, 0.22);
+  --shadow-sm: 0 2px 8px rgba(15, 55, 49, 0.04);
+  --shadow: 0 10px 32px rgba(15, 55, 49, 0.08);
+  --shadow-md: 0 16px 36px rgba(15, 55, 49, 0.12);
+  --shadow-lg: 0 28px 60px rgba(15, 55, 49, 0.18);
+}
+body {
+  background: #edf3f1;
+  background-image: radial-gradient(circle at 85% 0%, rgba(127, 188, 166, 0.25), transparent 33%),
+    radial-gradient(circle at 4% 86%, rgba(218, 170, 129, 0.18), transparent 28%);
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: radial-gradient(rgba(38, 104, 91, 0.16) 0.8px, transparent 0.8px);
+  background-size: 23px 23px;
+  mask-image: linear-gradient(120deg, transparent 24%, #000 100%);
+}
+.container { position: relative; z-index: 1; }
+header {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(30, 86, 76, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(24, 76, 65, 0.08);
+  animation: cloudtop-arrive 0.55s var(--ease-out) both;
+}
+header::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, #16897b, #b87958);
+}
+header:hover, header.scrolled { border-color: rgba(30, 86, 76, 0.2); box-shadow: var(--shadow-md); }
+.logo-icon { background: none; box-shadow: 0 6px 18px rgba(18, 109, 98, 0.13); border-radius: 12px; }
+.logo-icon img { display: block; width: 44px; height: 44px; }
+.title-group h1 { letter-spacing: -0.025em; }
+.btn-primary, .btn-accent { box-shadow: 0 6px 16px rgba(18, 109, 98, 0.17); }
+.btn-primary:hover, .btn-accent:hover { box-shadow: 0 9px 22px rgba(18, 109, 98, 0.24); transform: translateY(-1px); }
+.stat-card {
+  border: 1px solid rgba(30, 86, 76, 0.11);
+  background: linear-gradient(165deg, #fff 55%, #f4f9f6);
+  box-shadow: var(--shadow-sm);
+  animation: cloudtop-arrive 0.55s var(--ease-out) both;
+}
+.stat-card:nth-child(2) { animation-delay: 45ms; }
+.stat-card:nth-child(3) { animation-delay: 90ms; }
+.stat-card:nth-child(4) { animation-delay: 135ms; }
+.stat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+.stat-card::after {
+  content: "";
+  position: absolute;
+  right: -22px;
+  bottom: -37px;
+  width: 112px;
+  height: 112px;
+  border: 1px solid rgba(18, 109, 98, 0.11);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.stat-card:nth-child(4)::after { border-color: rgba(191, 118, 80, 0.18); }
+.section-header { animation: cloudtop-arrive 0.6s var(--ease-out) both; }
+.account-card { border-color: rgba(30, 86, 76, 0.13); }
+.deck .account-card.deck-front {
+  border: 1px solid rgba(18, 109, 98, 0.23);
+  box-shadow: 0 22px 55px rgba(13, 62, 54, 0.2), 0 4px 13px rgba(13, 62, 54, 0.08);
+}
+.deck .account-card.deck-side { box-shadow: 0 12px 32px rgba(13, 62, 54, 0.14); }
+.deck .account-card.deck-side::after { background: linear-gradient(120deg, rgba(237, 246, 241, 0.12), rgba(207, 226, 217, 0.3)); }
+.deck-arrow, #deck-dots { background: rgba(255, 255, 255, 0.91); border-color: rgba(18, 109, 98, 0.14); }
+.deck-dot.active { box-shadow: 0 0 0 4px rgba(18, 109, 98, 0.12); }
+.log-panel { box-shadow: 0 12px 32px rgba(8, 36, 33, 0.15); }
+.log-header { background: rgba(255, 255, 255, 0.06); }
+#unlock-modal .modal { border-color: rgba(8, 72, 63, 0.25); box-shadow: 0 34px 80px rgba(4, 32, 29, 0.3); }
+#unlock-modal .modal-header {
+  position: relative;
+  overflow: hidden;
+  padding: 21px 24px;
+  color: #fff;
+  background: linear-gradient(120deg, #0c5b52, #177d6e);
+  border-bottom: 0;
+}
+#unlock-modal .modal-header::after {
+  content: "";
+  position: absolute;
+  width: 170px;
+  height: 170px;
+  right: -35px;
+  top: -95px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  box-shadow: 0 0 0 26px rgba(255,255,255,0.035), 0 0 0 56px rgba(255,255,255,0.035);
+  pointer-events: none;
+}
+.unlock-heading { display: flex; align-items: center; gap: 13px; position: relative; z-index: 1; }
+.unlock-symbol {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.22);
+}
+.unlock-eyebrow { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.16em; opacity: 0.72; }
+#unlock-modal .modal-header h3 { color: #fff; font-size: 20px; line-height: 1.25; margin-top: 3px; }
+#unlock-modal .modal-body { background: linear-gradient(180deg, #fff, #f7faf8); }
+#unlock-modal .modal-footer { background: #f7faf8; }
+#unlock-modal .form-control { border-radius: 9px; }
+#unlock-modal .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-light); }
+#unlock-modal #btn-unlock-verify { min-height: 40px; }
+@keyframes cloudtop-arrive {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  header, .stat-card, .section-header { animation: none; }
+}
 
 @media (max-height: 620px) {
   body { overflow: auto; }
@@ -2323,6 +2462,9 @@ body { overflow: hidden; padding: 0; }
 }
 @media (max-width: 760px) {
   .deck .account-card { width: 88%; }
+  body { overflow: auto; }
+  .container { height: auto; min-height: 100dvh; }
+  .deck-wrap { flex: none; min-height: 280px; height: 55vh; }
 }
 @media (prefers-reduced-motion: reduce) {
   .deck .account-card { transition: none; }

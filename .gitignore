@@ -43,3 +43,10 @@ status_out.txt
 
 # 探针脚本的原始产物（平台返回原文 / 派生材料，绝不入库）
 tools/_*
+
+# Windows packaging outputs; never include local account or mail configuration.
+/build/
+/dist/
+*.spec
+/baked-mail-config.json
+/private-mail-config.json

@@ -1,0 +1,55 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main, codex/lock-mail-config-and-refine-ui]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: |
+          npm ci
+          python -m pip install -r app/ecloud_engine/requirements.txt pyinstaller==6.22.3
+      - name: Check JavaScript, storage and SMTP behavior
+        run: |
+          npm run check
+          node tests/data_dir.test.js
+          node tests/desktop_runtime.test.js
+          node tests/mail_config.test.js
+          node tests/smtp_mailer.test.js
+      - name: Build native portable Windows application
+        run: npm run build:windows
+      - name: Test native window and embedded protocol engine
+        run: node scripts/windows-smoke.js
+      - name: Upload tested public desktop package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cloudtop-Dashboard-Windows-x64
+          path: |
+            dist/*.exe
+            dist/*.sha256
+            dist/*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload public staging archive for private local packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cloudtop-Desktop-Staging
+          path: dist/Cloudtop-desktop-staging.zip
+          if-no-files-found: error
+          retention-days: 7
