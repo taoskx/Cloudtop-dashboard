@@ -274,3 +274,5 @@ body { overflow-y: auto; }
 .deck .account-card .task-box { padding: 10px 12px; }
 @media(max-width:1100px) { .deck .account-card { width: min(480px, 78%); left: 44%; } }
 .logo-icon img { width: 44px; height: 44px; object-fit: contain; }
+
+@media(min-width:1101px) { .deck .account-card.deck-front { padding: 20px; } }

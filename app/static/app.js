@@ -1786,11 +1786,11 @@ function layoutDeck() {
     }
     if (paired) {
       const distance = slot < 0 ? -slot : slot - 1;
-      const x = visible ? (slot === 0 ? -52 : 52) : (slot < 0 ? -1 : 1) * (76 + Math.max(0, distance - 1) * 19);
+      const x = visible ? (slot === 0 ? -48.5 : 48.5) : (slot < 0 ? -1 : 1) * (76 + Math.max(0, distance - 1) * 19);
       const scale = visible ? 1 : Math.max(.8, .96 - distance * .025);
-      card.style.transform = `translate(-50%, 0) translateX(${x}%) translateY(${visible ? 0 : 20 + distance * 14}px) scale(${scale})`;
+      card.style.transform = `translate(-50%, 0) translateX(${x}%) translateY(${visible ? (slot === 0 ? 0 : 16) : 20 + distance * 14}px) rotate(${visible ? (slot === 0 ? -.4 : .4) : 1.2}deg) scale(${scale})`;
       card.style.opacity = visible || distance <= 2 ? '1' : '0';
-      card.style.zIndex = String(visible ? 40 : 30 - distance);
+      card.style.zIndex = String(visible ? (i === focus ? 42 : 40) : 30 - distance);
       card.style.pointerEvents = visible || distance <= 2 ? 'auto' : 'none';
     } else {
       card.style.transform = deckTransformFor(d, mode);
@@ -1806,7 +1806,7 @@ function layoutDeck() {
     const wrap = container.closest('.deck-wrap');
     const log = document.getElementById('main-log-panel');
     if (!front || !wrap) return;
-    const height = Math.max(740, ...Array.from(container.querySelectorAll('.deck-front'), el => el.offsetHeight));
+    const height = Math.max(740, ...Array.from(container.querySelectorAll('.deck-front'), el => el.offsetHeight)) + (paired ? 20 : 0);
     wrap.style.height = `${height}px`;
     if (log && window.innerWidth > 760) {
       log.style.height = `${height + 45}px`;
